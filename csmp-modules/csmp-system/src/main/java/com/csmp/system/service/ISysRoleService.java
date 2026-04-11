@@ -2,6 +2,7 @@ package com.csmp.system.service;
 
 import com.csmp.common.mybatis.core.page.PageQuery;
 import com.csmp.common.mybatis.core.page.TableDataInfo;
+import com.csmp.system.domain.SysRoleEffectiveMenu;
 import com.csmp.system.domain.SysUserRole;
 import com.csmp.system.domain.bo.SysRoleBo;
 import com.csmp.system.domain.vo.SysRoleVo;
@@ -211,5 +212,25 @@ public interface ISysRoleService {
     void cleanOnlineUserByRole(Long roleId);
 
     void cleanOnlineUser(List<Long> userIds);
+
+    /**
+     * 获取角色树形结构
+     */
+    List<SysRoleVo> selectRoleTree();
+
+    /**
+     * 隐藏角色的继承菜单
+     */
+    void hideInheritedMenus(Long roleId, Long[] menuIds);
+
+    /**
+     * 恢复角色的继承菜单
+     */
+    void restoreInheritedMenus(Long roleId, Long[] menuIds);
+
+    /**
+     * 查询角色的有效菜单列表（含继承标记）
+     */
+    List<SysRoleEffectiveMenu> selectEffectiveMenus(Long roleId);
 
 }
