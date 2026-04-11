@@ -144,4 +144,40 @@ public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo> {
         return this.selectObjs(wrapper);
     }
 
+    /**
+     * 根据用户ID查询有效权限（使用物化表）
+     */
+    default Set<String> selectEffectiveMenuPermsByUserId(Long userId) {
+        String effectiveMenuSql = """
+                select menu_id from sys_role_effective_menu where role_id in (
+                    select sur.role_id from sys_user_role sur
+                        left join sys_role sr on sr.role_id = sur.role_id
+                        where sur.user_id = %d and sr.status = '0'
+                )
+            """.formatted(userId);
+        List<String> list = this.selectObjs(
+            new LambdaQueryWrapper<SysMenu>()
+                .select(SysMenu::getPerms)
+                .inSql(SysMenu::getMenuId, effectiveMenuSql)
+                .isNotNull(SysMenu::getPerms)
+        );
+        return new HashSet<>(StreamUtils.filter(list, StringUtils::isNotBlank));
+    }
+
+    /**
+     * 根据角色ID查询有效权限（使用物化表）
+     */
+    default Set<String> selectEffectiveMenuPermsByRoleId(Long roleId) {
+        String effectiveMenuSql = """
+                select menu_id from sys_role_effective_menu where role_id = %d
+            """.formatted(roleId);
+        List<String> list = this.selectObjs(
+            new LambdaQueryWrapper<SysMenu>()
+                .select(SysMenu::getPerms)
+                .inSql(SysMenu::getMenuId, effectiveMenuSql)
+                .isNotNull(SysMenu::getPerms)
+        );
+        return new HashSet<>(StreamUtils.filter(list, StringUtils::isNotBlank));
+    }
+
 }
