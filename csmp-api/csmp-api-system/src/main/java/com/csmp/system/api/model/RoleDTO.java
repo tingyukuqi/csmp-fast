@@ -39,4 +39,14 @@ public class RoleDTO implements Serializable {
      */
     private String dataScope;
 
+    /**
+     * 父角色ID
+     */
+    private Long parentId;
+
+    /**
+     * 角色层级深度
+     */
+    private Integer roleLevel;
+
 }

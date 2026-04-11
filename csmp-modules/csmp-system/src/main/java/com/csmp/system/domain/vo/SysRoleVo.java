@@ -12,6 +12,7 @@ import com.csmp.system.domain.SysRole;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 /**
  * 角色信息视图对象 sys_role
@@ -87,6 +88,26 @@ public class SysRoleVo implements Serializable {
      */
     @ExcelProperty(value = "创建时间")
     private Date createTime;
+
+    /**
+     * 父角色ID
+     */
+    private Long parentId;
+
+    /**
+     * 角色层级深度
+     */
+    private Integer roleLevel;
+
+    /**
+     * 父角色名称（用于前端展示）
+     */
+    private String parentRoleName;
+
+    /**
+     * 子角色列表（树形结构用）
+     */
+    private List<SysRoleVo> children;
 
     /**
      * 用户是否存在此角色标识 默认不存在
