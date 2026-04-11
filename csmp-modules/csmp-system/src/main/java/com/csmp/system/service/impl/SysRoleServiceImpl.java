@@ -358,7 +358,7 @@ public class SysRoleServiceImpl implements ISysRoleService {
         insertHiddenMenus(bo);
 
         // 发布权限变更事件
-        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, role.getRoleId(), parentChanged));
+        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, List.of(role.getRoleId()), parentChanged));
 
         return rows;
     }
@@ -679,7 +679,7 @@ public class SysRoleServiceImpl implements ISysRoleService {
         if (CollUtil.isNotEmpty(list)) {
             hiddenMenuMapper.insertBatch(list);
         }
-        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, roleId, true));
+        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, List.of(roleId), true));
     }
 
     @Override
@@ -687,8 +687,8 @@ public class SysRoleServiceImpl implements ISysRoleService {
     public void restoreInheritedMenus(Long roleId, Long[] menuIds) {
         hiddenMenuMapper.delete(new LambdaQueryWrapper<SysRoleHiddenMenu>()
             .eq(SysRoleHiddenMenu::getRoleId, roleId)
-            .in(SysRoleHiddenMenu::getMenuId, List.of(menuIds)));
-        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, roleId, true));
+            .in(SysRoleHiddenMenu::getMenuId, Arrays.asList(menuIds)));
+        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, List.of(roleId), true));
     }
 
     @Override
