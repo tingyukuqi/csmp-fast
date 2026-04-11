@@ -95,7 +95,7 @@ public class SysMenuServiceImpl implements ISysMenuService {
      */
     @Override
     public Set<String> selectMenuPermsByUserId(Long userId) {
-        return baseMapper.selectMenuPermsByUserId(userId);
+        return baseMapper.selectEffectiveMenuPermsByUserId(userId);
     }
 
     /**
