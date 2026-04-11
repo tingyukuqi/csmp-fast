@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS sys_role_effective_menu (
     CONSTRAINT pk_role_effective_menu PRIMARY KEY (role_id, menu_id)
 );
 
+ALTER TABLE sys_role_hidden_menu DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE sys_role_effective_menu DROP COLUMN IF EXISTS tenant_id;
+
 COMMENT ON TABLE sys_role_effective_menu IS '角色有效菜单物化表';
 COMMENT ON COLUMN sys_role_effective_menu.role_id IS '角色ID';
 COMMENT ON COLUMN sys_role_effective_menu.menu_id IS '有效菜单ID';

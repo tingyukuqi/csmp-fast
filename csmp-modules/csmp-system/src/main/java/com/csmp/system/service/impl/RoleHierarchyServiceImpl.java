@@ -2,11 +2,14 @@ package com.csmp.system.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.csmp.common.core.constant.TenantConstants;
 import com.csmp.common.core.exception.ServiceException;
 import com.csmp.common.mybatis.enums.DataScopeType;
 import com.csmp.system.domain.SysRole;
+import com.csmp.system.domain.SysRoleDept;
 import com.csmp.system.domain.vo.SysRoleVo;
+import com.csmp.system.mapper.SysRoleDeptMapper;
 import com.csmp.system.mapper.SysRoleMapper;
 import com.csmp.system.service.IRoleHierarchyService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,7 @@ import java.util.*;
 public class RoleHierarchyServiceImpl implements IRoleHierarchyService {
 
     private final SysRoleMapper roleMapper;
+    private final SysRoleDeptMapper roleDeptMapper;
 
     @Override
     public List<SysRoleVo> selectRoleTree() {
@@ -91,7 +95,7 @@ public class RoleHierarchyServiceImpl implements IRoleHierarchyService {
     }
 
     @Override
-    public void validateDataScopeConstraint(Long roleId, Long parentId, String dataScope) {
+    public void validateDataScopeConstraint(Long roleId, Long parentId, String dataScope, Long[] deptIds) {
         if (ObjectUtil.isNull(parentId) || ObjectUtil.isNull(dataScope)) {
             return;
         }
@@ -103,6 +107,10 @@ public class RoleHierarchyServiceImpl implements IRoleHierarchyService {
             throw new ServiceException(
                 String.format("子角色数据权限范围不能超过父角色! 父角色数据范围: %s, 当前设置: %s",
                     getDataScopeName(parentRole.getDataScope()), getDataScopeName(dataScope)));
+        }
+        if (DataScopeType.CUSTOM.getCode().equals(parentRole.getDataScope())
+            && DataScopeType.CUSTOM.getCode().equals(dataScope)) {
+            validateCustomDeptSubset(parentId, deptIds);
         }
     }
 
@@ -164,7 +172,30 @@ public class RoleHierarchyServiceImpl implements IRoleHierarchyService {
         if (DataScopeType.CUSTOM.getCode().equals(parentScope)) {
             return !DataScopeType.ALL.getCode().equals(childScope);
         }
+        if (DataScopeType.DEPT_AND_CHILD_OR_SELF.getCode().equals(parentScope)) {
+            return DataScopeType.DEPT.getCode().equals(childScope)
+                || DataScopeType.DEPT_AND_CHILD.getCode().equals(childScope)
+                || DataScopeType.SELF.getCode().equals(childScope)
+                || DataScopeType.DEPT_AND_CHILD_OR_SELF.getCode().equals(childScope);
+        }
         return true;
+    }
+
+    private void validateCustomDeptSubset(Long parentId, Long[] deptIds) {
+        if (deptIds == null || deptIds.length == 0) {
+            throw new ServiceException("自定义数据权限必须选择部门范围!");
+        }
+        Set<Long> parentDeptIds = new HashSet<>();
+        for (SysRoleDept roleDept : roleDeptMapper.selectList(new QueryWrapper<SysRoleDept>()
+            .select("dept_id")
+            .eq("role_id", parentId))) {
+            parentDeptIds.add(roleDept.getDeptId());
+        }
+        for (Long deptId : deptIds) {
+            if (!parentDeptIds.contains(deptId)) {
+                throw new ServiceException("自定义数据权限范围必须是父角色范围的子集!");
+            }
+        }
     }
 
     private String getDataScopeName(String code) {

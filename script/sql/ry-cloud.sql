@@ -211,6 +211,8 @@ create table sys_role (
   data_scope           char(1)         default '1'                comment '数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限 6：部门及以下或本人数据权限）',
   menu_check_strictly  tinyint(1)      default 1                  comment '菜单树选择项是否关联显示',
   dept_check_strictly  tinyint(1)      default 1                  comment '部门树选择项是否关联显示',
+  parent_id            bigint(20)      default null               comment '父角色ID，顶级角色为NULL',
+  role_level           int(4)          default 0                  comment '角色层级深度，顶级=0',
   status               char(1)         not null                   comment '角色状态（0正常 1停用）',
   del_flag             char(1)         default '0'                comment '删除标志（0代表存在 1代表删除）',
   create_dept          bigint(20)      default null               comment '创建部门',
@@ -225,9 +227,9 @@ create table sys_role (
 -- ----------------------------
 -- 初始化-角色信息表数据
 -- ----------------------------
-insert into sys_role values(1, '000000', '超级管理员',  'superadmin',  1, 1, 1, 1, '0', '0', 103, 1, sysdate(), null, null, '超级管理员');
-insert into sys_role values(3, '000000', '本部门及以下', 'test1', 3, 4, 1, 1, '0', '0', 103, 1, sysdate(), null, null, '');
-insert into sys_role values(4, '000000', '仅本人',      'test2', 4, 5, 1, 1, '0', '0', 103, 1, sysdate(), null, null, '');
+insert into sys_role values(1, '000000', '超级管理员',  'superadmin',  1, 1, 1, 1, null, 0, '0', '0', 103, 1, sysdate(), null, null, '超级管理员');
+insert into sys_role values(3, '000000', '本部门及以下', 'test1', 3, 4, 1, 1, null, 0, '0', '0', 103, 1, sysdate(), null, null, '');
+insert into sys_role values(4, '000000', '仅本人',      'test2', 4, 5, 1, 1, null, 0, '0', '0', 103, 1, sysdate(), null, null, '');
 
 
 -- ----------------------------
@@ -609,7 +611,42 @@ insert into sys_role_menu values ('4', '1510');
 insert into sys_role_menu values ('4', '1511');
 
 -- ----------------------------
--- 8、角色和部门关联表  角色1-N部门
+-- 8、角色继承菜单隐藏表
+-- ----------------------------
+create table sys_role_hidden_menu (
+  role_id   bigint(20) not null comment '角色ID',
+  menu_id   bigint(20) not null comment '被隐藏的继承菜单ID',
+  primary key(role_id, menu_id)
+) engine=innodb comment = '角色继承菜单隐藏表';
+
+create index idx_sys_role_hidden_menu_role on sys_role_hidden_menu (role_id);
+
+-- ----------------------------
+-- 9、角色有效菜单物化表
+-- ----------------------------
+create table sys_role_effective_menu (
+  role_id              bigint(20)  not null comment '角色ID',
+  menu_id              bigint(20)  not null comment '有效菜单ID',
+  source               varchar(16) not null comment '来源：OWN=自有, INHERITED=继承',
+  inherit_from_role_id bigint(20)  default null comment '继承自哪个角色',
+  primary key(role_id, menu_id)
+) engine=innodb comment = '角色有效菜单物化表';
+
+create index idx_sys_role_parent_id on sys_role (parent_id);
+create index idx_sys_role_effective_menu_role on sys_role_effective_menu (role_id);
+create index idx_sys_role_effective_menu_menu on sys_role_effective_menu (menu_id);
+
+-- ----------------------------
+-- 初始化-角色有效菜单物化表数据
+-- ----------------------------
+insert ignore into sys_role_effective_menu (role_id, menu_id, source, inherit_from_role_id)
+select srm.role_id, srm.menu_id, 'OWN', null
+from sys_role_menu srm
+inner join sys_role sr on sr.role_id = srm.role_id
+where sr.del_flag = '0';
+
+-- ----------------------------
+-- 10、角色和部门关联表  角色1-N部门
 -- ----------------------------
 create table sys_role_dept (
   role_id   bigint(20) not null comment '角色ID',

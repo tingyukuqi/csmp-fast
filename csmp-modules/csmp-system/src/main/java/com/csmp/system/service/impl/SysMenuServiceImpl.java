@@ -73,8 +73,7 @@ public class SysMenuServiceImpl implements ISysMenuService {
         LambdaQueryWrapper<SysMenu> wrapper = new LambdaQueryWrapper<>();
         // 管理员显示所有菜单信息 不是管理员 按用户id过滤菜单
         if (!LoginHelper.isSuperAdmin(userId)) {
-            // 通过用户id获取角色id 通过角色id获取菜单id 然后in菜单
-            wrapper.inSql(SysMenu::getMenuId, baseMapper.buildMenuByUserSql(userId));
+            wrapper.inSql(SysMenu::getMenuId, baseMapper.buildEffectiveMenuByUserSql(userId));
         }
         menuList = baseMapper.selectVoList(
             wrapper.like(StringUtils.isNotBlank(menu.getMenuName()), SysMenu::getMenuName, menu.getMenuName())
@@ -106,7 +105,7 @@ public class SysMenuServiceImpl implements ISysMenuService {
      */
     @Override
     public Set<String> selectMenuPermsByRoleId(Long roleId) {
-        return baseMapper.selectMenuPermsByRoleId(roleId);
+        return baseMapper.selectEffectiveMenuPermsByRoleId(roleId);
     }
 
     /**
@@ -125,7 +124,7 @@ public class SysMenuServiceImpl implements ISysMenuService {
             menus = baseMapper.selectList(
                 wrapper.in(SysMenu::getMenuType, SystemConstants.TYPE_DIR, SystemConstants.TYPE_MENU)
                     .eq(SysMenu::getStatus, SystemConstants.NORMAL)
-                    .inSql(SysMenu::getMenuId, baseMapper.buildMenuByUserSql(userId))
+                    .inSql(SysMenu::getMenuId, baseMapper.buildEffectiveMenuByUserSql(userId))
                     .orderByAsc(SysMenu::getParentId)
                     .orderByAsc(SysMenu::getOrderNum));
         }

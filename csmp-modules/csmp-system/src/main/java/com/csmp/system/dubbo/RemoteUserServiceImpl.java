@@ -276,6 +276,9 @@ public class RemoteUserServiceImpl implements RemoteUserService {
             Opt<SysDeptVo> deptOpt = Opt.of(userVo.getDeptId()).map(deptService::selectDeptById);
             loginUser.setDeptName(deptOpt.map(SysDeptVo::getDeptName).orElse(StringUtils.EMPTY));
             loginUser.setDeptCategory(deptOpt.map(SysDeptVo::getDeptCategory).orElse(StringUtils.EMPTY));
+            // 从部门 ancestors 推导组织ID
+            String ancestors = deptOpt.map(SysDeptVo::getAncestors).orElse(null);
+            loginUser.setOrgId(com.csmp.common.core.utils.OrgUtils.getOrgId(ancestors, userVo.getDeptId()));
         }
         List<SysRoleVo> roles = roleService.selectRolesByUserId(userId);
         List<SysPostVo> posts = postService.selectPostsByUserId(userId);
