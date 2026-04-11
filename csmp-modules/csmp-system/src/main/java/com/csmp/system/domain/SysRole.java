@@ -68,6 +68,16 @@ public class SysRole extends TenantEntity {
     private String delFlag;
 
     /**
+     * 父角色ID，顶级角色为NULL
+     */
+    private Long parentId;
+
+    /**
+     * 角色层级深度，顶级=0
+     */
+    private Integer roleLevel;
+
+    /**
      * 备注
      */
     private String remark;
