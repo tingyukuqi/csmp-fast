@@ -46,3 +46,4 @@ nbdist/
 !*/build/*.xml
 
 .flattened-pom.xml
+.worktrees/
