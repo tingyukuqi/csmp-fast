@@ -35,7 +35,7 @@ import java.util.Arrays;
 @Validated
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/supply/physical-resources")
+@RequestMapping({"/physical-resources", "/supply/physical-resources"})
 public class SupplyPhysicalResourceController extends BaseController {
 
     private final ISupplyPhysicalResourceService physicalResourceService;

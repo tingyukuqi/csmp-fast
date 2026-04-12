@@ -1,5 +1,7 @@
 package com.csmp.supply.controller;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import com.csmp.common.core.domain.R;
 import com.csmp.supply.domain.vo.SupplyOptionVo;
 import com.csmp.supply.service.ISupplyCloudTenantService;
@@ -19,17 +21,19 @@ import java.util.List;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/supply/options")
+@RequestMapping({"/options", "/supply/options"})
 public class SupplyOptionsController {
 
     private final ISupplyOrgCloudTenantBindService bindService;
     private final ISupplyCloudTenantService cloudTenantService;
 
+    @SaCheckPermission("supply:binding:list")
     @GetMapping("/orgs")
     public R<List<SupplyOptionVo>> orgOptions() {
         return R.ok(bindService.queryOrgOptions());
     }
 
+    @SaCheckPermission(value = {"supply:binding:list", "supply:cloudTenant:list"}, mode = SaMode.OR)
     @GetMapping("/cloud-tenants")
     public R<List<SupplyOptionVo>> cloudTenantOptions(@RequestParam Long cloudPlatformId,
                                                       @RequestParam(required = false) String keyword,

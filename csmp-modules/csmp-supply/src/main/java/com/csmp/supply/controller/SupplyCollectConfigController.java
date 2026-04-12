@@ -35,7 +35,7 @@ import java.util.Arrays;
 @Validated
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/supply/collect-configs")
+@RequestMapping({"/collect-configs", "/supply/collect-configs"})
 public class SupplyCollectConfigController extends BaseController {
 
     private final ISupplyCollectConfigService collectConfigService;

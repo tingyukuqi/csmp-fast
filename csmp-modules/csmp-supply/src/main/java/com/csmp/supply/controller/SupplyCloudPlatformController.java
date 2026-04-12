@@ -32,7 +32,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/supply/cloud-platforms")
+@RequestMapping({"/cloud-platforms", "/supply/cloud-platforms"})
 public class SupplyCloudPlatformController extends BaseController {
 
     private final ISupplyCloudPlatformService cloudPlatformService;

@@ -23,3 +23,9 @@
 1. `docs/api/supply-management-api.md`
 2. `docs/superpowers/specs/2026-04-12-supply-management-design.md`
 3. `docs/superpowers/plans/2026-04-12-supply-management.md`
+
+## 路由说明
+
+- 标准对外路径统一为 `/supply/{resource}`
+- 兼容保留 `/api/supply/{resource}` 访问别名
+- 控制器资源路径统一为 `/{resource}`，例如供应商分页列表标准对外地址为 `/supply/suppliers/list`

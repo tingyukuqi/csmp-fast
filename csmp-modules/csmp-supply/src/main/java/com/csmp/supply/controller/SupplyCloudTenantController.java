@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
 @Validated
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/supply/cloud-tenants")
+@RequestMapping({"/cloud-tenants", "/supply/cloud-tenants"})
 public class SupplyCloudTenantController extends BaseController {
 
     private final ISupplyCloudTenantService cloudTenantService;

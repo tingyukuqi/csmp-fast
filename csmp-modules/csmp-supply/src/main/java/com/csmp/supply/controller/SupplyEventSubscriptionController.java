@@ -31,7 +31,7 @@ import java.util.Arrays;
 @Validated
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/supply/event-subscriptions")
+@RequestMapping({"/event-subscriptions", "/supply/event-subscriptions"})
 public class SupplyEventSubscriptionController extends BaseController {
 
     private final ISupplyEventSubscriptionService eventSubscriptionService;

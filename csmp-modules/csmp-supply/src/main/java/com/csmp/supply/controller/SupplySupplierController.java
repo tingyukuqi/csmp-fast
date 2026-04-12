@@ -36,7 +36,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/supply/suppliers")
+@RequestMapping({"/suppliers", "/supply/suppliers"})
 public class SupplySupplierController extends BaseController {
 
     private final ISupplySupplierService supplierService;

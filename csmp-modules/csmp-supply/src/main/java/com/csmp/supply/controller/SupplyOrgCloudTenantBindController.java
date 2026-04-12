@@ -27,7 +27,7 @@ import java.util.Arrays;
 @Validated
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/supply/org-tenant-bindings")
+@RequestMapping({"/org-tenant-bindings", "/supply/org-tenant-bindings"})
 public class SupplyOrgCloudTenantBindController extends BaseController {
 
     private final ISupplyOrgCloudTenantBindService bindService;

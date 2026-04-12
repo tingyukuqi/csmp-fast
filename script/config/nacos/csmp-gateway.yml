@@ -83,6 +83,13 @@ spring:
             - id: csmp-supply
               uri: lb://csmp-supply
               predicates:
+                - Path=/supply/**
+              filters:
+                - StripPrefix=1
+            # 供应链监管兼容路由
+            - id: csmp-supply-api-compat
+              uri: lb://csmp-supply
+              predicates:
                 - Path=/api/supply/**
               filters:
                 - StripPrefix=2
