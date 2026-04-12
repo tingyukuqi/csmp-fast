@@ -59,7 +59,12 @@ public interface CacheNames {
     /**
      * 部门
      */
-    String SYS_DEPT = "sys_dept#30d";
+    String SYS_DEPT = "sys_dept_v2#30d";
+
+    /**
+     * 组织机构
+     */
+    String SYS_ORG = "sys_org#30d";
 
     /**
      * OSS内容

@@ -10,7 +10,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.csmp.common.core.constant.CacheNames;
-import com.csmp.common.core.constant.Constants;
 import com.csmp.common.core.constant.SystemConstants;
 import com.csmp.common.core.constant.TenantConstants;
 import com.csmp.common.core.exception.ServiceException;
@@ -21,6 +20,7 @@ import com.csmp.common.core.utils.StringUtils;
 import com.csmp.common.mybatis.core.page.PageQuery;
 import com.csmp.common.mybatis.core.page.TableDataInfo;
 import com.csmp.common.redis.utils.CacheUtils;
+import com.csmp.common.satoken.utils.LoginHelper;
 import com.csmp.common.tenant.core.TenantEntity;
 import com.csmp.common.tenant.helper.TenantHelper;
 import com.csmp.system.domain.*;
@@ -32,7 +32,6 @@ import com.csmp.workflow.api.RemoteWorkflowService;
 import lombok.RequiredArgsConstructor;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,10 +49,8 @@ public class SysTenantServiceImpl implements ISysTenantService {
     private final SysTenantMapper baseMapper;
     private final SysTenantPackageMapper tenantPackageMapper;
     private final SysUserMapper userMapper;
-    private final SysDeptMapper deptMapper;
     private final SysRoleMapper roleMapper;
     private final SysRoleMenuMapper roleMenuMapper;
-    private final SysRoleDeptMapper roleDeptMapper;
     private final SysUserRoleMapper userRoleMapper;
     private final SysDictTypeMapper dictTypeMapper;
     private final SysDictDataMapper dictDataMapper;
@@ -73,9 +70,17 @@ public class SysTenantServiceImpl implements ISysTenantService {
     /**
      * 基于租户ID查询租户
      */
-    @Cacheable(cacheNames = CacheNames.SYS_TENANT, key = "#tenantId")
     @Override
     public SysTenantVo queryByTenantId(String tenantId) {
+        if (StringUtils.isBlank(tenantId)) {
+            return null;
+        }
+        String loginTenantId = loginTenantId();
+        if (StringUtils.isNotBlank(loginTenantId)
+            && !isPlatformTenant(loginTenantId)
+            && !StringUtils.equals(loginTenantId, tenantId)) {
+            return null;
+        }
         return baseMapper.selectVoOne(new LambdaQueryWrapper<SysTenant>().eq(SysTenant::getTenantId, tenantId));
     }
 
@@ -100,7 +105,8 @@ public class SysTenantServiceImpl implements ISysTenantService {
 
     private LambdaQueryWrapper<SysTenant> buildQueryWrapper(SysTenantBo bo) {
         LambdaQueryWrapper<SysTenant> lqw = Wrappers.lambdaQuery();
-        lqw.eq(StringUtils.isNotBlank(bo.getTenantId()), SysTenant::getTenantId, bo.getTenantId());
+        String visibleTenantId = normalizeVisibleTenantId(bo.getTenantId());
+        lqw.eq(StringUtils.isNotBlank(visibleTenantId), SysTenant::getTenantId, visibleTenantId);
         lqw.like(StringUtils.isNotBlank(bo.getContactUserName()), SysTenant::getContactUserName, bo.getContactUserName());
         lqw.eq(StringUtils.isNotBlank(bo.getContactPhone()), SysTenant::getContactPhone, bo.getContactPhone());
         lqw.like(StringUtils.isNotBlank(bo.getCompanyName()), SysTenant::getCompanyName, bo.getCompanyName());
@@ -114,6 +120,22 @@ public class SysTenantServiceImpl implements ISysTenantService {
         lqw.eq(StringUtils.isNotBlank(bo.getStatus()), SysTenant::getStatus, bo.getStatus());
         lqw.orderByAsc(SysTenant::getId);
         return lqw;
+    }
+
+    String normalizeVisibleTenantId(String tenantId) {
+        String loginTenantId = loginTenantId();
+        if (isPlatformTenant(loginTenantId)) {
+            return StringUtils.isBlank(tenantId) ? null : tenantId;
+        }
+        return loginTenantId;
+    }
+
+    String loginTenantId() {
+        return LoginHelper.getTenantId();
+    }
+
+    boolean isPlatformTenant(String tenantId) {
+        return StringUtils.equals(TenantConstants.DEFAULT_TENANT_ID, tenantId);
     }
 
     /**
@@ -138,34 +160,13 @@ public class SysTenantServiceImpl implements ISysTenantService {
         // 根据套餐创建角色
         Long roleId = createTenantRole(tenantId, bo.getPackageId());
 
-        // 创建部门: 公司名是部门名称
-        SysDept dept = new SysDept();
-        dept.setTenantId(tenantId);
-        dept.setDeptName(bo.getCompanyName());
-        dept.setParentId(Constants.TOP_PARENT_ID);
-        dept.setAncestors(Constants.TOP_PARENT_ID.toString());
-        deptMapper.insert(dept);
-        Long deptId = dept.getDeptId();
-
-        // 角色和部门关联表
-        SysRoleDept roleDept = new SysRoleDept();
-        roleDept.setRoleId(roleId);
-        roleDept.setDeptId(deptId);
-        roleDeptMapper.insert(roleDept);
-
         // 创建系统用户
         SysUser user = new SysUser();
         user.setTenantId(tenantId);
         user.setUserName(bo.getUsername());
         user.setNickName(bo.getUsername());
         user.setPassword(BCrypt.hashpw(bo.getPassword()));
-        user.setDeptId(deptId);
         userMapper.insert(user);
-        //新增系统用户后，默认当前用户为部门的负责人
-        SysDept sd = new SysDept();
-        sd.setLeader(user.getUserId());
-        sd.setDeptId(deptId);
-        deptMapper.updateById(sd);
 
         // 用户和角色关联表
         SysUserRole userRole = new SysUserRole();

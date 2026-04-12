@@ -7,6 +7,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -23,17 +24,25 @@ import com.csmp.common.satoken.utils.LoginHelper;
 import com.csmp.system.api.model.LoginUser;
 import com.csmp.system.domain.SysRole;
 import com.csmp.system.domain.SysRoleDept;
+import com.csmp.system.domain.SysRoleEffectiveMenu;
+import com.csmp.system.domain.SysRoleHiddenMenu;
 import com.csmp.system.domain.SysRoleMenu;
 import com.csmp.system.domain.SysUserRole;
 import com.csmp.system.domain.bo.SysRoleBo;
 import com.csmp.system.domain.vo.SysRoleVo;
 import com.csmp.system.mapper.SysRoleDeptMapper;
+import com.csmp.system.mapper.SysRoleEffectiveMenuMapper;
+import com.csmp.system.mapper.SysRoleHiddenMenuMapper;
 import com.csmp.system.mapper.SysRoleMapper;
 import com.csmp.system.mapper.SysRoleMenuMapper;
 import com.csmp.system.mapper.SysUserRoleMapper;
+import com.csmp.system.event.RolePermissionChangedEvent;
+import com.csmp.system.service.IRoleEffectiveMenuService;
+import com.csmp.system.service.IRoleHierarchyService;
 import com.csmp.system.service.ISysRoleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +61,11 @@ public class SysRoleServiceImpl implements ISysRoleService {
     private final SysRoleMenuMapper roleMenuMapper;
     private final SysUserRoleMapper userRoleMapper;
     private final SysRoleDeptMapper roleDeptMapper;
+    private final SysRoleHiddenMenuMapper hiddenMenuMapper;
+    private final SysRoleEffectiveMenuMapper effectiveMenuMapper;
+    private final IRoleHierarchyService hierarchyService;
+    private final IRoleEffectiveMenuService effectiveMenuService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 分页查询角色列表
@@ -63,6 +77,7 @@ public class SysRoleServiceImpl implements ISysRoleService {
     @Override
     public TableDataInfo<SysRoleVo> selectPageRoleList(SysRoleBo role, PageQuery pageQuery) {
         Page<SysRoleVo> page = baseMapper.selectPageRoleList(pageQuery.build(), this.buildQueryWrapper(role));
+        enrichParentRoleNames(page.getRecords());
         return TableDataInfo.build(page);
     }
 
@@ -74,7 +89,9 @@ public class SysRoleServiceImpl implements ISysRoleService {
      */
     @Override
     public List<SysRoleVo> selectRoleList(SysRoleBo role) {
-        return baseMapper.selectRoleList(this.buildQueryWrapper(role));
+        List<SysRoleVo> list = baseMapper.selectRoleList(this.buildQueryWrapper(role));
+        enrichParentRoleNames(list);
+        return list;
     }
 
     private Wrapper<SysRole> buildQueryWrapper(SysRoleBo bo) {
@@ -169,7 +186,44 @@ public class SysRoleServiceImpl implements ISysRoleService {
      */
     @Override
     public SysRoleVo selectRoleById(Long roleId) {
-        return baseMapper.selectRoleById(roleId);
+        SysRoleVo roleVo = baseMapper.selectRoleById(roleId);
+        if (roleVo == null) {
+            return null;
+        }
+        if (roleVo.getParentId() != null) {
+            SysRole parentRole = baseMapper.selectById(roleVo.getParentId());
+            if (parentRole != null) {
+                roleVo.setParentRoleName(parentRole.getRoleName());
+            }
+        }
+        List<Long> hiddenMenuIds = hiddenMenuMapper.selectHiddenMenuIdsByRoleId(roleId);
+        roleVo.setHiddenMenuIds(hiddenMenuIds.toArray(Long[]::new));
+        List<Long> inheritedMenuIds = effectiveMenuMapper.selectEffectiveMenuDetailByRoleId(roleId).stream()
+            .filter(menu -> "INHERITED".equals(menu.getSource()))
+            .map(SysRoleEffectiveMenu::getMenuId)
+            .toList();
+        roleVo.setInheritedMenuIds(inheritedMenuIds.toArray(Long[]::new));
+        return roleVo;
+    }
+
+    private void enrichParentRoleNames(List<SysRoleVo> roles) {
+        if (CollUtil.isEmpty(roles)) {
+            return;
+        }
+        List<Long> parentIds = roles.stream()
+            .map(SysRoleVo::getParentId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        if (CollUtil.isEmpty(parentIds)) {
+            return;
+        }
+        Map<Long, String> parentNameMap = StreamUtils.toMap(
+            baseMapper.selectByIds(parentIds),
+            SysRole::getRoleId,
+            SysRole::getRoleName
+        );
+        roles.forEach(role -> role.setParentRoleName(parentNameMap.get(role.getParentId())));
     }
 
     /**
@@ -292,11 +346,24 @@ public class SysRoleServiceImpl implements ISysRoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int insertRole(SysRoleBo bo) {
+        // 层级校验
+        hierarchyService.validateParent(null, bo.getParentId());
+        hierarchyService.validateDataScopeConstraint(null, bo.getParentId(), bo.getDataScope(), bo.getDeptIds());
+
         SysRole role = MapstructUtils.convert(bo, SysRole.class);
-        // 新增角色信息
+        role.setRoleLevel(hierarchyService.calculateRoleLevel(bo.getParentId()));
         baseMapper.insert(role);
         bo.setRoleId(role.getRoleId());
-        return insertRoleMenu(bo);
+
+        int rows = insertRoleMenu(bo);
+
+        // 插入隐藏菜单
+        insertHiddenMenus(bo);
+
+        // 发布权限变更事件
+        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, role.getRoleId()));
+
+        return rows;
     }
 
     /**
@@ -313,11 +380,26 @@ public class SysRoleServiceImpl implements ISysRoleService {
         if (SystemConstants.DISABLE.equals(role.getStatus()) && this.countUserRoleByRoleId(role.getRoleId()) > 0) {
             throw new ServiceException("角色已分配，不能禁用!");
         }
-        // 修改角色信息
+
+        // 层级校验
+        hierarchyService.validateParent(bo.getRoleId(), bo.getParentId());
+        hierarchyService.validateDataScopeConstraint(bo.getRoleId(), bo.getParentId(), bo.getDataScope(), bo.getDeptIds());
+
+        SysRole oldRole = baseMapper.selectById(role.getRoleId());
+        role.setRoleLevel(hierarchyService.calculateRoleLevel(bo.getParentId()));
+
         baseMapper.updateById(role);
-        // 删除角色与菜单关联
         roleMenuMapper.delete(new LambdaQueryWrapper<SysRoleMenu>().eq(SysRoleMenu::getRoleId, role.getRoleId()));
-        return insertRoleMenu(bo);
+        int rows = insertRoleMenu(bo);
+
+        // 更新隐藏菜单
+        hiddenMenuMapper.delete(new LambdaQueryWrapper<SysRoleHiddenMenu>().eq(SysRoleHiddenMenu::getRoleId, role.getRoleId()));
+        insertHiddenMenus(bo);
+
+        // 发布权限变更事件
+        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, List.of(role.getRoleId()), true));
+
+        return rows;
     }
 
     /**
@@ -332,10 +414,14 @@ public class SysRoleServiceImpl implements ISysRoleService {
         if (SystemConstants.DISABLE.equals(status) && this.countUserRoleByRoleId(roleId) > 0) {
             throw new ServiceException("角色已分配，不能禁用!");
         }
-        return baseMapper.update(null,
-            new LambdaUpdateWrapper<SysRole>()
-                .set(SysRole::getStatus, status)
-                .eq(SysRole::getRoleId, roleId));
+        int rows = baseMapper.update(null,
+            new UpdateWrapper<SysRole>()
+                .set("status", status)
+                .eq("role_id", roleId));
+        if (rows > 0) {
+            eventPublisher.publishEvent(new RolePermissionChangedEvent(this, List.of(roleId), true));
+        }
+        return rows;
     }
 
     /**
@@ -409,10 +495,15 @@ public class SysRoleServiceImpl implements ISysRoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int deleteRoleById(Long roleId) {
-        // 删除角色与菜单关联
+        // 检查是否有子角色
+        List<Long> childIds = baseMapper.selectChildRoleIds(roleId);
+        if (cn.hutool.core.collection.CollUtil.isNotEmpty(childIds)) {
+            throw new ServiceException("该角色下存在子角色，不能删除!");
+        }
         roleMenuMapper.delete(new LambdaQueryWrapper<SysRoleMenu>().eq(SysRoleMenu::getRoleId, roleId));
-        // 删除角色与部门关联
         roleDeptMapper.delete(new LambdaQueryWrapper<SysRoleDept>().eq(SysRoleDept::getRoleId, roleId));
+        hiddenMenuMapper.delete(new LambdaQueryWrapper<SysRoleHiddenMenu>().eq(SysRoleHiddenMenu::getRoleId, roleId));
+        effectiveMenuMapper.delete(new LambdaQueryWrapper<SysRoleEffectiveMenu>().eq(SysRoleEffectiveMenu::getRoleId, roleId));
         return baseMapper.deleteById(roleId);
     }
 
@@ -433,11 +524,16 @@ public class SysRoleServiceImpl implements ISysRoleService {
             if (countUserRoleByRoleId(role.getRoleId()) > 0) {
                 throw new ServiceException(String.format("%1$s已分配，不能删除!", role.getRoleName()));
             }
+            if (cn.hutool.core.collection.CollUtil.isNotEmpty(baseMapper.selectChildRoleIds(role.getRoleId()))) {
+                throw new ServiceException(String.format("%1$s下存在子角色，不能删除!", role.getRoleName()));
+            }
         }
         // 删除角色与菜单关联
         roleMenuMapper.delete(new LambdaQueryWrapper<SysRoleMenu>().in(SysRoleMenu::getRoleId, roleIds));
         // 删除角色与部门关联
         roleDeptMapper.delete(new LambdaQueryWrapper<SysRoleDept>().in(SysRoleDept::getRoleId, roleIds));
+        hiddenMenuMapper.delete(new LambdaQueryWrapper<SysRoleHiddenMenu>().in(SysRoleHiddenMenu::getRoleId, roleIds));
+        effectiveMenuMapper.delete(new LambdaQueryWrapper<SysRoleEffectiveMenu>().in(SysRoleEffectiveMenu::getRoleId, roleIds));
         return baseMapper.deleteByIds(roleIds);
     }
 
@@ -589,6 +685,79 @@ public class SysRoleServiceImpl implements ISysRoleService {
                 }
             }
         });
+    }
+
+    /**
+     * 新增角色隐藏菜单
+     */
+    private void insertHiddenMenus(SysRoleBo bo) {
+        if (bo.getHiddenMenuIds() == null || bo.getHiddenMenuIds().length == 0) {
+            return;
+        }
+        List<SysRoleHiddenMenu> list = new ArrayList<>();
+        for (Long menuId : bo.getHiddenMenuIds()) {
+            SysRoleHiddenMenu hm = new SysRoleHiddenMenu();
+            hm.setRoleId(bo.getRoleId());
+            hm.setMenuId(menuId);
+            list.add(hm);
+        }
+        hiddenMenuMapper.insertBatch(list);
+    }
+
+    @Override
+    public List<SysRoleVo> selectRoleTree() {
+        return hierarchyService.selectRoleTree();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void hideInheritedMenus(Long roleId, Long[] menuIds) {
+        checkRoleDataScope(roleId);
+        if (menuIds == null || menuIds.length == 0) {
+            return;
+        }
+        Map<Long, SysRoleEffectiveMenu> effectiveMenuMap = new HashMap<>();
+        for (SysRoleEffectiveMenu menu : effectiveMenuMapper.selectEffectiveMenuDetailByRoleId(roleId)) {
+            effectiveMenuMap.put(menu.getMenuId(), menu);
+        }
+        Set<Long> existingHiddenIds = new HashSet<>(hiddenMenuMapper.selectHiddenMenuIdsByRoleId(roleId));
+        List<SysRoleHiddenMenu> list = new ArrayList<>();
+        for (Long menuId : new LinkedHashSet<>(Arrays.asList(menuIds))) {
+            if (existingHiddenIds.contains(menuId)) {
+                continue;
+            }
+            SysRoleEffectiveMenu effectiveMenu = effectiveMenuMap.get(menuId);
+            if (effectiveMenu == null || !"INHERITED".equals(effectiveMenu.getSource())) {
+                throw new ServiceException("只能隐藏继承菜单!");
+            }
+            SysRoleHiddenMenu hm = new SysRoleHiddenMenu();
+            hm.setRoleId(roleId);
+            hm.setMenuId(menuId);
+            list.add(hm);
+        }
+        if (CollUtil.isNotEmpty(list)) {
+            hiddenMenuMapper.insertBatch(list);
+        }
+        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, List.of(roleId), true));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void restoreInheritedMenus(Long roleId, Long[] menuIds) {
+        checkRoleDataScope(roleId);
+        if (menuIds == null || menuIds.length == 0) {
+            return;
+        }
+        hiddenMenuMapper.delete(new LambdaQueryWrapper<SysRoleHiddenMenu>()
+            .eq(SysRoleHiddenMenu::getRoleId, roleId)
+            .in(SysRoleHiddenMenu::getMenuId, Arrays.asList(menuIds)));
+        eventPublisher.publishEvent(new RolePermissionChangedEvent(this, List.of(roleId), true));
+    }
+
+    @Override
+    public List<SysRoleEffectiveMenu> selectEffectiveMenus(Long roleId) {
+        checkRoleDataScope(roleId);
+        return effectiveMenuMapper.selectEffectiveMenuDetailByRoleId(roleId);
     }
 
 }

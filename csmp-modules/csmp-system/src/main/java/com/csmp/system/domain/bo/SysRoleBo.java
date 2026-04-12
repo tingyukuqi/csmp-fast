@@ -83,6 +83,16 @@ public class SysRoleBo extends BaseEntity {
      */
     private Long[] deptIds;
 
+    /**
+     * 父角色ID
+     */
+    private Long parentId;
+
+    /**
+     * 隐藏的继承菜单ID数组
+     */
+    private Long[] hiddenMenuIds;
+
     public SysRoleBo(Long roleId) {
         this.roleId = roleId;
     }

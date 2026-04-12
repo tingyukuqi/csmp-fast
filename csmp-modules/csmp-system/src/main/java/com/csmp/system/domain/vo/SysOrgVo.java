@@ -10,28 +10,26 @@ import com.csmp.system.domain.SysDept;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 /**
- * 部门视图对象 sys_dept
+ * 组织机构视图对象 sys_dept（parent_id = 0 的根部门）
  *
- * @author Michelle.Chung
+ * @author csmp
  */
 @Data
 @ExcelIgnoreUnannotated
 @AutoMapper(target = SysDept.class)
-public class SysDeptVo implements Serializable {
+public class SysOrgVo implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
     /**
-     * 部门id
+     * 组织ID（即部门ID）
      */
-    @ExcelProperty(value = "部门id")
-    private Long deptId;
+    @ExcelProperty(value = "组织ID")
+    private Long orgId;
 
     /**
      * 租户ID
@@ -39,35 +37,27 @@ public class SysDeptVo implements Serializable {
     private String tenantId;
 
     /**
-     * 父部门id
+     * 租户名称
      */
-    private Long parentId;
+    @ExcelProperty(value = "租户名称")
+    private String tenantName;
 
     /**
-     * 父部门名称
+     * 组织名称（即部门名称）
      */
-    private String parentName;
+    @ExcelProperty(value = "组织名称")
+    private String orgName;
 
     /**
-     * 祖级列表
+     * 组织类型（复用 dept_category 字段）
      */
-    private String ancestors;
-
-    /**
-     * 部门名称
-     */
-    @ExcelProperty(value = "部门名称")
-    private String deptName;
-
-    /**
-     * 部门类别编码
-     */
-    @ExcelProperty(value = "部门类别编码")
+    @ExcelProperty(value = "组织类型")
     private String deptCategory;
 
     /**
      * 显示顺序
      */
+    @ExcelProperty(value = "显示顺序")
     private Integer orderNum;
 
     /**
@@ -76,7 +66,7 @@ public class SysDeptVo implements Serializable {
     private Long leader;
 
     /**
-     * 负责人
+     * 负责人姓名
      */
     @ExcelProperty(value = "负责人")
     private String leaderName;
@@ -94,9 +84,9 @@ public class SysDeptVo implements Serializable {
     private String email;
 
     /**
-     * 部门状态（0正常 1停用）
+     * 状态（0正常 1停用）
      */
-    @ExcelProperty(value = "部门状态", converter = ExcelDictConvert.class)
+    @ExcelProperty(value = "状态", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "sys_normal_disable")
     private String status;
 
@@ -105,10 +95,5 @@ public class SysDeptVo implements Serializable {
      */
     @ExcelProperty(value = "创建时间")
     private Date createTime;
-
-    /**
-     * 子菜单
-     */
-    private List<SysDept> children = new ArrayList<>();
 
 }

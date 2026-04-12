@@ -89,6 +89,36 @@ public class SysDeptServiceImpl implements ISysDeptService {
         return buildDeptTreeSelect(depts);
     }
 
+    /**
+     * 查询指定组织下的部门树结构（不含组织自身）
+     *
+     * @param orgId 组织ID
+     * @return 部门树信息集合
+     */
+    @Override
+    public List<Tree<Long>> selectDeptTreeByOrgId(Long orgId) {
+        if (ObjectUtil.isNull(orgId)) {
+            return selectDeptTreeList(new SysDeptBo());
+        }
+        // 获取组织下所有子部门（不含组织自身）
+        List<Long> deptIds = baseMapper.selectDeptAndChildById(orgId);
+        if (CollUtil.isEmpty(deptIds)) {
+            return CollUtil.newArrayList();
+        }
+        // 排除组织自身，只保留子部门
+        deptIds.remove(orgId);
+        if (CollUtil.isEmpty(deptIds)) {
+            return CollUtil.newArrayList();
+        }
+        LambdaQueryWrapper<SysDept> lqw = Wrappers.lambdaQuery();
+        lqw.eq(SysDept::getDelFlag, SystemConstants.NORMAL);
+        lqw.in(SysDept::getDeptId, deptIds);
+        lqw.orderByAsc(SysDept::getAncestors);
+        lqw.orderByAsc(SysDept::getOrderNum);
+        List<SysDeptVo> depts = baseMapper.selectDeptList(lqw);
+        return buildDeptTreeSelect(depts);
+    }
+
     private LambdaQueryWrapper<SysDept> buildQueryWrapper(SysDeptBo bo) {
         Map<String, Object> params = bo.getParams();
         LambdaQueryWrapper<SysDept> lqw = Wrappers.lambdaQuery();

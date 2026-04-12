@@ -102,4 +102,28 @@ public interface SysRoleMapper extends BaseMapperPlus<SysRole, SysRoleVo> {
             .inSql(SysRole::getRoleId, this.buildRoleByUserSql(userId)));
     }
 
+    /**
+     * 查询所有子角色ID（直接子级）
+     */
+    default List<Long> selectChildRoleIds(Long parentId) {
+        return this.selectObjs(new LambdaQueryWrapper<SysRole>()
+            .select(SysRole::getRoleId)
+            .eq(SysRole::getParentId, parentId));
+    }
+
+    /**
+     * 查询角色树（同租户内）
+     */
+    @DataPermission({
+        @DataColumn(key = "deptName", value = "create_dept"),
+        @DataColumn(key = "userName", value = "create_by")
+    })
+    default List<SysRoleVo> selectRoleTree() {
+        return this.selectVoList(new LambdaQueryWrapper<SysRole>()
+            .select(SysRole::getRoleId, SysRole::getRoleName, SysRole::getParentId,
+                SysRole::getRoleKey, SysRole::getRoleSort, SysRole::getRoleLevel,
+                SysRole::getStatus)
+            .orderByAsc(SysRole::getRoleSort));
+    }
+
 }

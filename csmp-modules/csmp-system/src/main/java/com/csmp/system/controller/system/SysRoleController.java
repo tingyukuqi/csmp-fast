@@ -12,12 +12,14 @@ import com.csmp.common.log.enums.BusinessType;
 import com.csmp.common.mybatis.core.page.PageQuery;
 import com.csmp.common.mybatis.core.page.TableDataInfo;
 import com.csmp.common.web.core.BaseController;
+import com.csmp.system.domain.SysRoleEffectiveMenu;
 import com.csmp.system.domain.SysUserRole;
 import com.csmp.system.domain.bo.SysDeptBo;
 import com.csmp.system.domain.bo.SysRoleBo;
 import com.csmp.system.domain.bo.SysUserBo;
 import com.csmp.system.domain.vo.SysRoleVo;
 import com.csmp.system.domain.vo.SysUserVo;
+import com.csmp.system.service.IRoleEffectiveMenuService;
 import com.csmp.system.service.ISysDeptService;
 import com.csmp.system.service.ISysRoleService;
 import com.csmp.system.service.ISysUserService;
@@ -40,6 +42,7 @@ public class SysRoleController extends BaseController {
     private final ISysRoleService roleService;
     private final ISysUserService userService;
     private final ISysDeptService deptService;
+    private final IRoleEffectiveMenuService effectiveMenuService;
 
     /**
      * 获取角色信息列表
@@ -225,14 +228,59 @@ public class SysRoleController extends BaseController {
      * 获取对应角色部门树列表
      *
      * @param roleId 角色ID
+     * @param orgId  组织ID（可选，指定时只返回该组织下的部门树）
      */
     @SaCheckPermission("system:role:list")
     @GetMapping(value = "/deptTree/{roleId}")
-    public R<DeptTreeSelectVo> roleDeptTreeselect(@PathVariable("roleId") Long roleId) {
+    public R<DeptTreeSelectVo> roleDeptTreeselect(@PathVariable("roleId") Long roleId,
+                                                   @RequestParam(value = "orgId", required = false) Long orgId) {
         DeptTreeSelectVo selectVo = new DeptTreeSelectVo(
             deptService.selectDeptListByRoleId(roleId),
-            deptService.selectDeptTreeList(new SysDeptBo()));
+            orgId != null ? deptService.selectDeptTreeByOrgId(orgId) : deptService.selectDeptTreeList(new SysDeptBo()));
         return R.ok(selectVo);
+    }
+
+    /**
+     * 获取角色树形结构
+     */
+    @SaCheckPermission("system:role:list")
+    @GetMapping("/tree")
+    public R<List<SysRoleVo>> tree() {
+        return R.ok(roleService.selectRoleTree());
+    }
+
+    /**
+     * 获取角色有效菜单列表（含继承标记）
+     */
+    @SaCheckPermission("system:role:query")
+    @GetMapping("/{roleId}/effective-menus")
+    public R<List<SysRoleEffectiveMenu>> effectiveMenus(@PathVariable Long roleId) {
+        roleService.checkRoleDataScope(roleId);
+        return R.ok(roleService.selectEffectiveMenus(roleId));
+    }
+
+    /**
+     * 批量隐藏继承菜单
+     */
+    @SaCheckPermission("system:role:edit")
+    @Log(title = "角色管理", businessType = BusinessType.UPDATE)
+    @PutMapping("/{roleId}/hide-menus")
+    public R<Void> hideMenus(@PathVariable Long roleId, @RequestBody Long[] menuIds) {
+        roleService.checkRoleDataScope(roleId);
+        roleService.hideInheritedMenus(roleId, menuIds);
+        return R.ok();
+    }
+
+    /**
+     * 批量恢复继承菜单
+     */
+    @SaCheckPermission("system:role:edit")
+    @Log(title = "角色管理", businessType = BusinessType.UPDATE)
+    @PutMapping("/{roleId}/restore-menus")
+    public R<Void> restoreMenus(@PathVariable Long roleId, @RequestBody Long[] menuIds) {
+        roleService.checkRoleDataScope(roleId);
+        roleService.restoreInheritedMenus(roleId, menuIds);
+        return R.ok();
     }
 
     /**
@@ -244,4 +292,3 @@ public class SysRoleController extends BaseController {
     public record DeptTreeSelectVo(List<Long> checkedKeys, List<Tree<Long>> depts) {}
 
 }
-

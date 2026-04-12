@@ -296,6 +296,8 @@ tenant:
     - sys_tenant_package
     - sys_role_dept
     - sys_role_menu
+    - sys_role_hidden_menu
+    - sys_role_effective_menu
     - sys_user_post
     - sys_user_role
     - sys_client
