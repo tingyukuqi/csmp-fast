@@ -4,6 +4,8 @@ import com.csmp.common.core.validate.AddGroup;
 import com.csmp.common.core.validate.EditGroup;
 import com.csmp.common.json.validate.JsonPattern;
 import com.csmp.common.json.validate.JsonType;
+import com.csmp.supply.support.JsonObjectStringDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -36,10 +38,13 @@ public class SupplyCollectConfigBo {
     private String connectorCode;
     @NotBlank(message = "鉴权类型不能为空", groups = {AddGroup.class, EditGroup.class})
     private String authType;
+    @JsonDeserialize(using = JsonObjectStringDeserializer.class)
     @JsonPattern(type = JsonType.OBJECT, message = "鉴权配置必须为JSON对象")
     private String authPayload;
+    @JsonDeserialize(using = JsonObjectStringDeserializer.class)
     @JsonPattern(type = JsonType.OBJECT, message = "范围过滤必须为JSON对象")
     private String scopeFilter;
+    @JsonDeserialize(using = JsonObjectStringDeserializer.class)
     @JsonPattern(type = JsonType.OBJECT, message = "采集扩展必须为JSON对象")
     private String collectOptions;
     @NotBlank(message = "执行周期不能为空", groups = {AddGroup.class, EditGroup.class})

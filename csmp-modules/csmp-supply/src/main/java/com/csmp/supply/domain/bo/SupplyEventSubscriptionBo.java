@@ -4,6 +4,8 @@ import com.csmp.common.core.validate.AddGroup;
 import com.csmp.common.core.validate.EditGroup;
 import com.csmp.common.json.validate.JsonPattern;
 import com.csmp.common.json.validate.JsonType;
+import com.csmp.supply.support.JsonObjectStringDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -30,6 +32,7 @@ public class SupplyEventSubscriptionBo {
     private String consumerGroup;
     private String endpointPath;
     private String authType;
+    @JsonDeserialize(using = JsonObjectStringDeserializer.class)
     @JsonPattern(type = JsonType.OBJECT, message = "鉴权配置必须为JSON对象")
     private String authPayload;
     @NotBlank(message = "数据格式不能为空", groups = {AddGroup.class, EditGroup.class})

@@ -1,10 +1,12 @@
 package com.csmp.supply.domain.bo;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.csmp.common.core.validate.AddGroup;
 import com.csmp.common.core.validate.EditGroup;
 import com.csmp.common.json.validate.JsonPattern;
 import com.csmp.common.json.validate.JsonType;
+import com.csmp.supply.support.JsonObjectStringDeserializer;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -44,6 +46,7 @@ public class SupplyPhysicalResourceBo {
     private Date purchaseDate;
     @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
     private Date expireDate;
+    @JsonDeserialize(using = JsonObjectStringDeserializer.class)
     @JsonPattern(type = JsonType.OBJECT, message = "规格扩展必须为JSON对象")
     private String specPayload;
     @Size(max = 500, message = "备注长度不能超过500")

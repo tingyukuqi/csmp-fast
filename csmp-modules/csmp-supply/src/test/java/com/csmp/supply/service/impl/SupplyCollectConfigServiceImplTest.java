@@ -5,6 +5,7 @@ import com.csmp.common.core.utils.SpringUtils;
 import com.csmp.supply.api.domain.bo.CollectExecuteBo;
 import com.csmp.supply.domain.SupplyCollectConfig;
 import com.csmp.supply.domain.SupplyCollectLog;
+import com.csmp.supply.domain.bo.SupplyCollectConfigBo;
 import com.csmp.supply.mapper.SupplyCloudPlatformMapper;
 import com.csmp.supply.mapper.SupplyCloudTenantMapper;
 import com.csmp.supply.mapper.SupplyCollectConfigMapper;
@@ -27,7 +28,7 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -79,7 +80,7 @@ class SupplyCollectConfigServiceImplTest {
             collectExecutor,
             idGenerator
         ));
-        doReturn(TENANT_ID).when(collectConfigService).currentTenantId();
+        lenient().doReturn(TENANT_ID).when(collectConfigService).currentTenantId();
     }
 
     @Test
@@ -123,5 +124,65 @@ class SupplyCollectConfigServiceImplTest {
         assertEquals("success", logCaptor.getValue().getResultStatus());
         assertEquals(2, logCaptor.getValue().getCloudTenantCount());
         verify(collectConfigMapper).updateById(any(SupplyCollectConfig.class));
+    }
+
+    @Test
+    void insertByBoShouldRejectMissingAuthPayloadWhenAuthTypeRequiresCredentials() {
+        SupplyCollectConfigBo bo = new SupplyCollectConfigBo();
+        bo.setCloudPlatformId(20L);
+        bo.setProviderCode("unicom_cloud");
+        bo.setCollectUrl("https://collector.example.internal/openstack/resources");
+        bo.setCollectScope("tenant");
+        bo.setCollectMode("scheduled_pull");
+        bo.setSyncStrategy("incremental");
+        bo.setConnectorCode("openstack_v3");
+        bo.setAuthType("ak_sk");
+        bo.setExecuteCycle("6h");
+
+        assertThrows(ServiceException.class, () -> collectConfigService.insertByBo(bo));
+    }
+
+    @Test
+    void updateByBoShouldRetainSensitiveAndDefaultFieldsWhenOmitted() {
+        SupplyCollectConfig existing = new SupplyCollectConfig();
+        existing.setId(10L);
+        existing.setTenantId(TENANT_ID);
+        existing.setCloudPlatformId(20L);
+        existing.setProviderCode("unicom_cloud");
+        existing.setCollectUrl("https://collector.example.internal/openstack/resources");
+        existing.setCollectScope("tenant");
+        existing.setCollectMode("scheduled_pull");
+        existing.setSyncStrategy("incremental");
+        existing.setConnectorCode("openstack_v3");
+        existing.setAuthType("ak_sk");
+        existing.setAuthPayload("{\"accessKey\":\"old-ak\",\"secretKey\":\"old-sk\"}");
+        existing.setExecuteCycle("6h");
+        existing.setTimeoutSeconds(30);
+        existing.setRetryTimes(2);
+        existing.setVerifySsl(Boolean.TRUE);
+        existing.setStatus("0");
+
+        when(collectConfigMapper.selectOne(any())).thenReturn(existing);
+
+        SupplyCollectConfigBo bo = new SupplyCollectConfigBo();
+        bo.setCollectConfigId(10L);
+        bo.setCloudPlatformId(20L);
+        bo.setProviderCode("unicom_cloud");
+        bo.setCollectUrl("https://collector.example.internal/openstack/resources");
+        bo.setCollectScope("tenant");
+        bo.setCollectMode("scheduled_pull");
+        bo.setSyncStrategy("incremental");
+        bo.setConnectorCode("openstack_v3");
+        bo.setAuthType("ak_sk");
+        bo.setExecuteCycle("12h");
+
+        collectConfigService.updateByBo(bo);
+
+        ArgumentCaptor<SupplyCollectConfig> configCaptor = ArgumentCaptor.forClass(SupplyCollectConfig.class);
+        verify(collectConfigMapper).updateById(configCaptor.capture());
+        assertEquals("{\"accessKey\":\"old-ak\",\"secretKey\":\"old-sk\"}", configCaptor.getValue().getAuthPayload());
+        assertEquals(30, configCaptor.getValue().getTimeoutSeconds());
+        assertEquals(2, configCaptor.getValue().getRetryTimes());
+        assertEquals(Boolean.TRUE, configCaptor.getValue().getVerifySsl());
     }
 }

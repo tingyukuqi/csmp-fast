@@ -74,11 +74,15 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
 
     @Override
     public boolean insertByBo(SupplyEventSubscriptionBo bo) {
+        EventWriteFields fields = resolveWriteFields(bo, null);
+        validateWriteRules(fields);
         validateUnique(bo);
         SupplyEventSubscription entity = new SupplyEventSubscription();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(idGenerator.nextId());
         entity.setTenantId(currentTenantId());
+        entity.setAuthType(fields.authType());
+        entity.setAuthPayload(fields.authPayload());
         entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), EnableStatusEnum.ENABLE.getCode()));
         return eventSubscriptionMapper.insert(entity) > 0;
     }
@@ -86,11 +90,20 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
     @Override
     public boolean updateByBo(SupplyEventSubscriptionBo bo) {
         SupplyEventSubscription entity = getSubscriptionOrThrow(bo.getSubscriptionId());
+        EventWriteFields fields = resolveWriteFields(bo, entity);
+        validateWriteRules(fields);
         validateUnique(bo);
+        String existingStatus = entity.getStatus();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(bo.getSubscriptionId());
         entity.setTenantId(currentTenantId());
-        entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), entity.getStatus()));
+        entity.setIngestMode(fields.ingestMode());
+        entity.setTopicName(fields.topicName());
+        entity.setConsumerGroup(fields.consumerGroup());
+        entity.setEndpointPath(fields.endpointPath());
+        entity.setAuthType(fields.authType());
+        entity.setAuthPayload(fields.authPayload());
+        entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), existingStatus));
         return eventSubscriptionMapper.updateById(entity) > 0;
     }
 
@@ -160,6 +173,47 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
         return true;
     }
 
+    private void validateWriteRules(EventWriteFields fields) {
+        if (StringUtils.inStringIgnoreCase(fields.ingestMode(), "rocketmq", "kafka_adapter")) {
+            if (StringUtils.isBlank(fields.topicName())) {
+                throw new ServiceException("事件主题不能为空");
+            }
+            if (StringUtils.isBlank(fields.consumerGroup())) {
+                throw new ServiceException("消费组不能为空");
+            }
+        }
+        if (StringUtils.equalsIgnoreCase(fields.ingestMode(), "webhook")) {
+            validateEndpointPath(fields.endpointPath(), "回调路径");
+        } else {
+            validateOptionalEndpointPath(fields.endpointPath(), "回调路径");
+        }
+        if (StringUtils.isNotBlank(fields.authPayload()) && StringUtils.isBlank(fields.authType())) {
+            throw new ServiceException("鉴权类型不能为空");
+        }
+        if (requiresAuthPayload(fields.authType()) && StringUtils.isBlank(fields.authPayload())) {
+            throw new ServiceException("鉴权配置不能为空");
+        }
+    }
+
+    private EventWriteFields resolveWriteFields(SupplyEventSubscriptionBo bo, SupplyEventSubscription current) {
+        String effectiveIngestMode = bo.getIngestMode();
+        boolean sameMode = current != null && StringUtils.equalsIgnoreCase(effectiveIngestMode, current.getIngestMode());
+        String effectiveTopicName = preserveWhenBlank(bo.getTopicName(), current == null ? null : current.getTopicName(), sameMode);
+        String effectiveConsumerGroup = preserveWhenBlank(bo.getConsumerGroup(), current == null ? null : current.getConsumerGroup(), sameMode);
+        String effectiveEndpointPath = preserveWhenBlank(bo.getEndpointPath(), current == null ? null : current.getEndpointPath(), sameMode);
+        String effectiveAuthType = current == null ? bo.getAuthType() : StringUtils.defaultIfBlank(bo.getAuthType(), current.getAuthType());
+        boolean sameAuthType = current != null && StringUtils.equalsIgnoreCase(effectiveAuthType, current.getAuthType());
+        String effectiveAuthPayload = preserveWhenBlank(bo.getAuthPayload(), current == null ? null : current.getAuthPayload(), sameAuthType);
+        return new EventWriteFields(effectiveIngestMode, effectiveTopicName, effectiveConsumerGroup, effectiveEndpointPath, effectiveAuthType, effectiveAuthPayload);
+    }
+
+    private String preserveWhenBlank(String candidate, String existing, boolean keepExisting) {
+        if (keepExisting && StringUtils.isBlank(candidate)) {
+            return existing;
+        }
+        return candidate;
+    }
+
     private void validateUnique(SupplyEventSubscriptionBo bo) {
         boolean duplicated = eventSubscriptionMapper.exists(Wrappers.<SupplyEventSubscription>lambdaQuery()
             .eq(SupplyEventSubscription::getTenantId, currentTenantId())
@@ -205,5 +259,9 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
         vo.setRawPayload(parseJsonObject(entity.getRawPayload()));
         vo.setNormalizedPayload(parseJsonObject(entity.getNormalizedPayload()));
         return vo;
+    }
+
+    private record EventWriteFields(String ingestMode, String topicName, String consumerGroup,
+                                    String endpointPath, String authType, String authPayload) {
     }
 }

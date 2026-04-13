@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -53,7 +53,7 @@ class SupplyOrgCloudTenantBindServiceImplTest {
             remoteDeptService,
             idGenerator
         ));
-        doReturn(TENANT_ID).when(bindService).currentTenantId();
+        lenient().doReturn(TENANT_ID).when(bindService).currentTenantId();
     }
 
     @Test
@@ -75,6 +75,25 @@ class SupplyOrgCloudTenantBindServiceImplTest {
         bo.setCloudPlatformId(1L);
         bo.setCloudTenantSnapshotId(2L);
         bo.setOrgId(3L);
+
+        assertThrows(ServiceException.class, () -> bindService.insertByBo(bo));
+    }
+
+    @Test
+    void insertByBoShouldRejectUnboundStatusWithoutInvalidTime() {
+        SupplyCloudPlatform platform = new SupplyCloudPlatform();
+        platform.setId(1L);
+        SupplyCloudTenant cloudTenant = new SupplyCloudTenant();
+        cloudTenant.setId(2L);
+        RemoteDeptVo deptVo = new RemoteDeptVo();
+        deptVo.setDeptId(3L);
+        deptVo.setDeptName("上海事业部");
+
+        SupplyOrgCloudTenantBindBo bo = new SupplyOrgCloudTenantBindBo();
+        bo.setCloudPlatformId(1L);
+        bo.setCloudTenantSnapshotId(2L);
+        bo.setOrgId(3L);
+        bo.setBindStatus("unbound");
 
         assertThrows(ServiceException.class, () -> bindService.insertByBo(bo));
     }

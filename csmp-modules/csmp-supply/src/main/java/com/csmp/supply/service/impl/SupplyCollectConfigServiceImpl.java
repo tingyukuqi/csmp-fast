@@ -81,6 +81,7 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
 
     @Override
     public boolean insertByBo(SupplyCollectConfigBo bo) {
+        validateWriteRules(bo, null);
         validateConfigUnique(bo);
         SupplyCollectConfig entity = new SupplyCollectConfig();
         BeanUtil.copyProperties(bo, entity);
@@ -102,11 +103,21 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
     @Override
     public boolean updateByBo(SupplyCollectConfigBo bo) {
         SupplyCollectConfig entity = getConfigOrThrow(bo.getCollectConfigId());
+        validateWriteRules(bo, entity);
         validateConfigUnique(bo);
+        String existingStatus = entity.getStatus();
+        Integer existingTimeoutSeconds = entity.getTimeoutSeconds();
+        Integer existingRetryTimes = entity.getRetryTimes();
+        Boolean existingVerifySsl = entity.getVerifySsl();
+        String effectiveAuthPayload = resolveAuthPayload(bo, entity);
         BeanUtil.copyProperties(bo, entity);
         entity.setId(bo.getCollectConfigId());
         entity.setTenantId(currentTenantId());
-        entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), entity.getStatus()));
+        entity.setAuthPayload(effectiveAuthPayload);
+        entity.setTimeoutSeconds(bo.getTimeoutSeconds() != null ? bo.getTimeoutSeconds() : Objects.requireNonNullElse(existingTimeoutSeconds, 30));
+        entity.setRetryTimes(bo.getRetryTimes() != null ? bo.getRetryTimes() : Objects.requireNonNullElse(existingRetryTimes, 0));
+        entity.setVerifySsl(bo.getVerifySsl() != null ? bo.getVerifySsl() : Objects.requireNonNullElse(existingVerifySsl, Boolean.TRUE));
+        entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), existingStatus));
         return collectConfigMapper.updateById(entity) > 0;
     }
 
@@ -202,6 +213,23 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
         lqw.orderByDesc(SupplyCollectLog::getStartTime);
         Page<SupplyCollectLog> page = collectLogMapper.selectPage(pageQuery.build(), lqw);
         return TableDataInfo.build(page.convert(this::toLogVo));
+    }
+
+    private void validateWriteRules(SupplyCollectConfigBo bo, SupplyCollectConfig current) {
+        validateHttpUrl(bo.getCollectUrl(), "采集地址");
+        validateOptionalHttpUrl(bo.getSyncEndpoint(), "同步回调地址");
+        if (requiresAuthPayload(bo.getAuthType()) && StringUtils.isBlank(resolveAuthPayload(bo, current))) {
+            throw new ServiceException("鉴权配置不能为空");
+        }
+    }
+
+    private String resolveAuthPayload(SupplyCollectConfigBo bo, SupplyCollectConfig current) {
+        if (current != null
+            && StringUtils.isBlank(bo.getAuthPayload())
+            && StringUtils.equalsIgnoreCase(bo.getAuthType(), current.getAuthType())) {
+            return current.getAuthPayload();
+        }
+        return bo.getAuthPayload();
     }
 
     private void validateConfigUnique(SupplyCollectConfigBo bo) {

@@ -17,6 +17,8 @@ import java.util.Date;
  */
 public abstract class AbstractSupplyService {
 
+    private static final String[] NO_AUTH_TYPES = {"none", "no_auth", "anonymous"};
+
     protected String currentTenantId() {
         String tenantId = TenantHelper.getTenantId();
         if (StringUtils.isBlank(tenantId)) {
@@ -34,6 +36,40 @@ public abstract class AbstractSupplyService {
 
     protected Object parseJsonObject(String text) {
         return JsonUtils.parseMap(text);
+    }
+
+    protected void validateHttpUrl(String value, String fieldName) {
+        if (StringUtils.isBlank(value) || !StringUtils.ishttp(value)) {
+            throw new ServiceException("{}格式不正确，必须以 http:// 或 https:// 开头", fieldName);
+        }
+    }
+
+    protected void validateOptionalHttpUrl(String value, String fieldName) {
+        if (StringUtils.isNotBlank(value) && !StringUtils.ishttp(value)) {
+            throw new ServiceException("{}格式不正确，必须以 http:// 或 https:// 开头", fieldName);
+        }
+    }
+
+    protected void validateEndpointPath(String value, String fieldName) {
+        if (StringUtils.isBlank(value) || !StringUtils.startsWith(value, StringUtils.SLASH)) {
+            throw new ServiceException("{}不能为空且必须以 / 开头", fieldName);
+        }
+    }
+
+    protected void validateOptionalEndpointPath(String value, String fieldName) {
+        if (StringUtils.isNotBlank(value) && !StringUtils.startsWith(value, StringUtils.SLASH)) {
+            throw new ServiceException("{}格式不正确，必须以 / 开头", fieldName);
+        }
+    }
+
+    protected boolean requiresAuthPayload(String authType) {
+        return StringUtils.isNotBlank(authType) && !StringUtils.inStringIgnoreCase(authType, NO_AUTH_TYPES);
+    }
+
+    protected void validateCreditCode(String creditCode) {
+        if (StringUtils.isNotBlank(creditCode) && !creditCode.matches("^[0-9A-Z]{18}$")) {
+            throw new ServiceException("统一社会信用代码格式不正确");
+        }
     }
 
     protected Date parseDateTime(String text) {

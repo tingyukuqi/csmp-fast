@@ -5,6 +5,7 @@ import com.csmp.common.core.utils.SpringUtils;
 import com.csmp.supply.domain.SupplyEventLog;
 import com.csmp.supply.domain.SupplyEventSubscription;
 import com.csmp.supply.domain.bo.SupplyEventIngestBo;
+import com.csmp.supply.domain.bo.SupplyEventSubscriptionBo;
 import com.csmp.supply.mapper.SupplyCloudPlatformMapper;
 import com.csmp.supply.mapper.SupplyEventLogMapper;
 import com.csmp.supply.mapper.SupplyEventSubscriptionMapper;
@@ -26,7 +27,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -72,7 +73,7 @@ class SupplyEventSubscriptionServiceImplTest {
             cloudPlatformMapper,
             idGenerator
         ));
-        doReturn(TENANT_ID).when(eventSubscriptionService).currentTenantId();
+        lenient().doReturn(TENANT_ID).when(eventSubscriptionService).currentTenantId();
     }
 
     @Test
@@ -117,5 +118,31 @@ class SupplyEventSubscriptionServiceImplTest {
         verify(eventLogMapper).insert(logCaptor.capture());
         assertEquals("received", logCaptor.getValue().getProcessStatus());
         assertEquals("alarm.trigger", logCaptor.getValue().getEventKey());
+    }
+
+    @Test
+    void insertByBoShouldRejectRocketMqWithoutTopicAndConsumerGroup() {
+        SupplyEventSubscriptionBo bo = new SupplyEventSubscriptionBo();
+        bo.setCloudPlatformId(2L);
+        bo.setProviderCode("unicom_cloud");
+        bo.setEventScope("alarm");
+        bo.setIngestMode("rocketmq");
+        bo.setDataFormat("json");
+        bo.setSchemaVersion("1.0");
+
+        assertThrows(ServiceException.class, () -> eventSubscriptionService.insertByBo(bo));
+    }
+
+    @Test
+    void insertByBoShouldRejectWebhookWithoutEndpointPath() {
+        SupplyEventSubscriptionBo bo = new SupplyEventSubscriptionBo();
+        bo.setCloudPlatformId(2L);
+        bo.setProviderCode("unicom_cloud");
+        bo.setEventScope("alarm");
+        bo.setIngestMode("webhook");
+        bo.setDataFormat("json");
+        bo.setSchemaVersion("1.0");
+
+        assertThrows(ServiceException.class, () -> eventSubscriptionService.insertByBo(bo));
     }
 }

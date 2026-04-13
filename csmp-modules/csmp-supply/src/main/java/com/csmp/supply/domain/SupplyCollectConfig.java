@@ -1,10 +1,12 @@
 package com.csmp.supply.domain;
 
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.csmp.common.encrypt.annotation.EncryptField;
 import com.csmp.common.tenant.core.TenantEntity;
+import com.csmp.supply.support.PostgresJsonbStringTypeHandler;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -17,7 +19,7 @@ import java.util.Date;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("supply_collect_config")
+@TableName(value = "supply_collect_config", autoResultMap = true)
 public class SupplyCollectConfig extends TenantEntity {
 
     @TableId(value = "id")
@@ -44,8 +46,10 @@ public class SupplyCollectConfig extends TenantEntity {
     @EncryptField
     private String authPayload;
 
+    @TableField(typeHandler = PostgresJsonbStringTypeHandler.class)
     private String scopeFilter;
 
+    @TableField(typeHandler = PostgresJsonbStringTypeHandler.class)
     private String collectOptions;
 
     private String executeCycle;

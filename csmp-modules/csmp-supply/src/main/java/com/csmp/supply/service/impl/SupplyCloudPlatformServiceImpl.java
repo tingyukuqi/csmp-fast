@@ -69,6 +69,7 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
 
     @Override
     public boolean insertByBo(SupplyCloudPlatformBo bo) {
+        validateWriteRules(bo);
         validateUnique(bo);
         SupplyCloudPlatform entity = new SupplyCloudPlatform();
         BeanUtil.copyProperties(bo, entity);
@@ -81,6 +82,7 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
     @Override
     public boolean updateByBo(SupplyCloudPlatformBo bo) {
         SupplyCloudPlatform entity = getPlatformOrThrow(bo.getPlatformId());
+        validateWriteRules(bo);
         validateUnique(bo);
         entity.setPlatformCode(bo.getPlatformCode());
         entity.setPlatformName(bo.getPlatformName());
@@ -131,6 +133,10 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
             vo.setExtra(Map.of("platformCode", item.getPlatformCode(), "status", item.getStatus()));
             return vo;
         }).toList();
+    }
+
+    private void validateWriteRules(SupplyCloudPlatformBo bo) {
+        validateHttpUrl(bo.getAccessUrl(), "访问地址");
     }
 
     private void validateUnique(SupplyCloudPlatformBo bo) {

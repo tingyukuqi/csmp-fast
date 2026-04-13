@@ -79,9 +79,11 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
 
     @Override
     public boolean insertByBo(SupplySupplierBo bo) {
+        validateWriteRules(bo);
         validateSupplierUnique(bo);
         SupplySupplier entity = new SupplySupplier();
         BeanUtil.copyProperties(bo, entity);
+        entity.setCreditCode(StringUtils.trimToNull(bo.getCreditCode()));
         entity.setId(idGenerator.nextId());
         entity.setTenantId(currentTenantId());
         entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), EnableStatusEnum.ENABLE.getCode()));
@@ -91,12 +93,13 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     @Override
     public boolean updateByBo(SupplySupplierBo bo) {
         SupplySupplier entity = getSupplierOrThrow(bo.getSupplierId());
+        validateWriteRules(bo);
         validateSupplierUnique(bo);
         entity.setSupplierCode(bo.getSupplierCode());
         entity.setSupplierName(bo.getSupplierName());
         entity.setSupplierShortName(bo.getSupplierShortName());
         entity.setSupplierType(bo.getSupplierType());
-        entity.setCreditCode(bo.getCreditCode());
+        entity.setCreditCode(StringUtils.trimToNull(bo.getCreditCode()));
         entity.setServiceScope(bo.getServiceScope());
         entity.setContactName(bo.getContactName());
         entity.setContactPhone(bo.getContactPhone());
@@ -227,6 +230,10 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
         return true;
     }
 
+    private void validateWriteRules(SupplySupplierBo bo) {
+        validateCreditCode(bo.getCreditCode());
+    }
+
     private void validateSupplierUnique(SupplySupplierBo bo) {
         SupplySupplier duplicatedCode = supplierMapper.selectOne(Wrappers.<SupplySupplier>lambdaQuery()
             .eq(SupplySupplier::getTenantId, currentTenantId())
@@ -241,15 +248,6 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
             .ne(Objects.nonNull(bo.getSupplierId()), SupplySupplier::getId, bo.getSupplierId()));
         if (duplicatedName != null) {
             throw new ServiceException("供应商名称已存在");
-        }
-        if (StringUtils.isNotBlank(bo.getCreditCode())) {
-            SupplySupplier duplicatedCredit = supplierMapper.selectOne(Wrappers.<SupplySupplier>lambdaQuery()
-                .eq(SupplySupplier::getTenantId, currentTenantId())
-                .eq(SupplySupplier::getCreditCode, bo.getCreditCode())
-                .ne(Objects.nonNull(bo.getSupplierId()), SupplySupplier::getId, bo.getSupplierId()));
-            if (duplicatedCredit != null) {
-                throw new ServiceException("统一社会信用代码已存在");
-            }
         }
     }
 

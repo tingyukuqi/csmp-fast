@@ -29,7 +29,6 @@ create table if not exists supply_supplier (
 
 create unique index if not exists uk_supply_supplier_code on supply_supplier (tenant_id, supplier_code, del_flag);
 create unique index if not exists uk_supply_supplier_name on supply_supplier (tenant_id, supplier_name, del_flag);
-create unique index if not exists uk_supply_supplier_credit_code on supply_supplier (tenant_id, credit_code, del_flag);
 create index if not exists idx_supply_supplier_status on supply_supplier (tenant_id, status);
 
 create table if not exists supply_supplier_platform_account (

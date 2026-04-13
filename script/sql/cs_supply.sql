@@ -41,7 +41,6 @@ create table if not exists supply_supplier (
     primary key (id),
     unique key uk_supply_supplier_code (tenant_id, supplier_code, del_flag),
     unique key uk_supply_supplier_name (tenant_id, supplier_name, del_flag),
-    unique key uk_supply_supplier_credit_code (tenant_id, credit_code, del_flag),
     key idx_supply_supplier_status (tenant_id, status)
 ) engine=innodb comment='供应商主数据';
 

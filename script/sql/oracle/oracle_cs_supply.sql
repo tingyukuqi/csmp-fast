@@ -73,7 +73,6 @@ comment on column supply_supplier.del_flag is '删除标志（0存在 1删除）
 
 create unique index uk_sup_sup_code on supply_supplier (tenant_id, supplier_code, del_flag);
 create unique index uk_sup_sup_name on supply_supplier (tenant_id, supplier_name, del_flag);
-create unique index uk_sup_sup_credit on supply_supplier (tenant_id, credit_code, del_flag);
 create index idx_sup_sup_status on supply_supplier (tenant_id, status);
 
 create table supply_supplier_platform_account (

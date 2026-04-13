@@ -1,9 +1,11 @@
 package com.csmp.supply.domain;
 
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.csmp.common.tenant.core.TenantEntity;
+import com.csmp.supply.support.PostgresJsonbStringTypeHandler;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -16,7 +18,7 @@ import java.util.Date;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("supply_event_log")
+@TableName(value = "supply_event_log", autoResultMap = true)
 public class SupplyEventLog extends TenantEntity {
 
     @TableId(value = "id")
@@ -40,8 +42,10 @@ public class SupplyEventLog extends TenantEntity {
 
     private String traceId;
 
+    @TableField(typeHandler = PostgresJsonbStringTypeHandler.class)
     private String rawPayload;
 
+    @TableField(typeHandler = PostgresJsonbStringTypeHandler.class)
     private String normalizedPayload;
 
     private String errorMessage;

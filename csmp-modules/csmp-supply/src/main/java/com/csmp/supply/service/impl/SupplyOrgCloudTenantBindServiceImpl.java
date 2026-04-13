@@ -86,26 +86,33 @@ public class SupplyOrgCloudTenantBindServiceImpl extends AbstractSupplyService i
 
     @Override
     public boolean insertByBo(SupplyOrgCloudTenantBindBo bo) {
+        Date effectiveTime = bo.getEffectiveTime() == null ? new Date() : bo.getEffectiveTime();
+        String bindStatus = StringUtils.defaultIfBlank(bo.getBindStatus(), "bound");
+        validateWriteRules(bindStatus, effectiveTime, bo.getInvalidTime());
         validateBind(bo);
         SupplyOrgCloudTenantBind entity = new SupplyOrgCloudTenantBind();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(idGenerator.nextId());
         entity.setTenantId(currentTenantId());
-        entity.setBindStatus(StringUtils.defaultIfBlank(bo.getBindStatus(), "bound"));
-        if (entity.getEffectiveTime() == null) {
-            entity.setEffectiveTime(new Date());
-        }
+        entity.setBindStatus(bindStatus);
+        entity.setEffectiveTime(effectiveTime);
         return bindMapper.insert(entity) > 0;
     }
 
     @Override
     public boolean updateByBo(SupplyOrgCloudTenantBindBo bo) {
         SupplyOrgCloudTenantBind entity = getBindOrThrow(bo.getBindingId());
+        String bindStatus = StringUtils.defaultIfBlank(bo.getBindStatus(), entity.getBindStatus());
+        Date effectiveTime = bo.getEffectiveTime() == null ? entity.getEffectiveTime() : bo.getEffectiveTime();
+        Date invalidTime = bo.getInvalidTime() == null ? entity.getInvalidTime() : bo.getInvalidTime();
+        validateWriteRules(bindStatus, effectiveTime, invalidTime);
         validateBind(bo);
         BeanUtil.copyProperties(bo, entity);
         entity.setId(bo.getBindingId());
         entity.setTenantId(currentTenantId());
-        entity.setBindStatus(StringUtils.defaultIfBlank(bo.getBindStatus(), entity.getBindStatus()));
+        entity.setBindStatus(bindStatus);
+        entity.setEffectiveTime(effectiveTime);
+        entity.setInvalidTime(invalidTime);
         return bindMapper.updateById(entity) > 0;
     }
 
@@ -122,6 +129,15 @@ public class SupplyOrgCloudTenantBindServiceImpl extends AbstractSupplyService i
             vo.setValue(item.getDeptId());
             return vo;
         }).toList();
+    }
+
+    private void validateWriteRules(String bindStatus, Date effectiveTime, Date invalidTime) {
+        if (StringUtils.equalsIgnoreCase(bindStatus, "unbound") && invalidTime == null) {
+            throw new ServiceException("解绑时间不能为空");
+        }
+        if (effectiveTime != null && invalidTime != null && invalidTime.before(effectiveTime)) {
+            throw new ServiceException("失效时间不能早于生效时间");
+        }
     }
 
     private void validateBind(SupplyOrgCloudTenantBindBo bo) {
