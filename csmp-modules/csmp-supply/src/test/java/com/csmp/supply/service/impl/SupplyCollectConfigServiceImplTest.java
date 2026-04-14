@@ -3,6 +3,7 @@ package com.csmp.supply.service.impl;
 import com.csmp.common.core.exception.ServiceException;
 import com.csmp.common.core.utils.SpringUtils;
 import com.csmp.supply.api.domain.bo.CollectExecuteBo;
+import com.csmp.supply.domain.SupplyCloudPlatform;
 import com.csmp.supply.domain.SupplyCollectConfig;
 import com.csmp.supply.domain.SupplyCollectLog;
 import com.csmp.supply.domain.bo.SupplyCollectConfigBo;
@@ -161,8 +162,12 @@ class SupplyCollectConfigServiceImplTest {
         existing.setRetryTimes(2);
         existing.setVerifySsl(Boolean.TRUE);
         existing.setStatus("0");
+        SupplyCloudPlatform platform = new SupplyCloudPlatform();
+        platform.setId(20L);
+        platform.setTenantId(TENANT_ID);
 
         when(collectConfigMapper.selectOne(any())).thenReturn(existing);
+        when(cloudPlatformMapper.selectById(20L)).thenReturn(platform);
 
         SupplyCollectConfigBo bo = new SupplyCollectConfigBo();
         bo.setCollectConfigId(10L);

@@ -17,6 +17,7 @@ import com.csmp.common.mybatis.helper.DataPermissionHelper;
 import com.csmp.common.tenant.helper.TenantHelper;
 import com.csmp.system.api.RemoteUserService;
 import com.csmp.system.api.domain.bo.RemoteUserBo;
+import com.csmp.system.api.domain.bo.RemoteUserOptionQueryBo;
 import com.csmp.system.api.domain.vo.RemoteUserVo;
 import com.csmp.system.api.model.LoginUser;
 import com.csmp.system.api.model.PostDTO;
@@ -323,6 +324,35 @@ public class RemoteUserServiceImpl implements RemoteUserService {
             .eq(SysUser::getStatus, SystemConstants.NORMAL)
             .in(SysUser::getUserId, userIds));
         return MapstructUtils.convert(list, RemoteUserVo.class);
+    }
+
+    /**
+     * 查询用户选项列表
+     *
+     * @param bo 查询条件
+     * @return 用户列表
+     */
+    @Override
+    public List<RemoteUserVo> selectOptionList(RemoteUserOptionQueryBo bo) {
+        if (bo == null) {
+            return List.of();
+        }
+        LambdaQueryWrapper<SysUser> lqw = new LambdaQueryWrapper<SysUser>()
+            .select(SysUser::getUserId, SysUser::getDeptId, SysUser::getUserName,
+                SysUser::getNickName, SysUser::getUserType, SysUser::getEmail,
+                SysUser::getPhonenumber, SysUser::getSex, SysUser::getStatus,
+                SysUser::getCreateTime)
+            .eq(SysUser::getStatus, SystemConstants.NORMAL)
+            .eq(ObjectUtil.isNotNull(bo.getDeptId()), SysUser::getDeptId, bo.getDeptId())
+            .notIn(CollUtil.isNotEmpty(bo.getExcludeUserIds()), SysUser::getUserId, bo.getExcludeUserIds())
+            .and(StringUtils.isNotBlank(bo.getKeyword()), wrapper -> wrapper
+                .like(SysUser::getUserName, bo.getKeyword())
+                .or()
+                .like(SysUser::getNickName, bo.getKeyword())
+                .or()
+                .like(SysUser::getPhonenumber, bo.getKeyword()))
+            .orderByAsc(SysUser::getUserId);
+        return MapstructUtils.convert(userMapper.selectUserList(lqw), RemoteUserVo.class);
     }
 
     /**

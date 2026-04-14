@@ -52,8 +52,9 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
 
     @Override
     public TableDataInfo<SupplyEventSubscriptionVo> queryPageList(SupplyEventSubscriptionBo bo, PageQuery pageQuery) {
+        String tenantScope = queryTenantScope();
         LambdaQueryWrapper<SupplyEventSubscription> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplyEventSubscription::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplyEventSubscription::getTenantId, tenantScope);
         lqw.eq(Objects.nonNull(bo.getCloudPlatformId()), SupplyEventSubscription::getCloudPlatformId, bo.getCloudPlatformId());
         lqw.eq(StringUtils.isNotBlank(bo.getProviderCode()), SupplyEventSubscription::getProviderCode, bo.getProviderCode());
         lqw.eq(StringUtils.isNotBlank(bo.getEventScope()), SupplyEventSubscription::getEventScope, bo.getEventScope());
@@ -76,11 +77,12 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
     public boolean insertByBo(SupplyEventSubscriptionBo bo) {
         EventWriteFields fields = resolveWriteFields(bo, null);
         validateWriteRules(fields);
-        validateUnique(bo);
+        String tenantScope = resolvePlatformTenantId(bo.getCloudPlatformId());
+        validateUnique(bo, tenantScope);
         SupplyEventSubscription entity = new SupplyEventSubscription();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(idGenerator.nextId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(tenantScope);
         entity.setAuthType(fields.authType());
         entity.setAuthPayload(fields.authPayload());
         entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), EnableStatusEnum.ENABLE.getCode()));
@@ -92,11 +94,12 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
         SupplyEventSubscription entity = getSubscriptionOrThrow(bo.getSubscriptionId());
         EventWriteFields fields = resolveWriteFields(bo, entity);
         validateWriteRules(fields);
-        validateUnique(bo);
+        String tenantScope = resolvePlatformTenantId(bo.getCloudPlatformId());
+        validateUnique(bo, tenantScope);
         String existingStatus = entity.getStatus();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(bo.getSubscriptionId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(tenantScope);
         entity.setIngestMode(fields.ingestMode());
         entity.setTopicName(fields.topicName());
         entity.setConsumerGroup(fields.consumerGroup());
@@ -121,9 +124,10 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
 
     @Override
     public TableDataInfo<SupplyEventLogVo> queryEventPage(Long subscriptionId, SupplyEventLogBo bo, PageQuery pageQuery) {
-        getSubscriptionOrThrow(subscriptionId);
+        SupplyEventSubscription subscription = getSubscriptionOrThrow(subscriptionId);
+        String tenantScope = resolveTargetTenantId(subscription.getTenantId());
         LambdaQueryWrapper<SupplyEventLog> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplyEventLog::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplyEventLog::getTenantId, tenantScope);
         lqw.eq(SupplyEventLog::getSubscriptionId, subscriptionId);
         lqw.eq(StringUtils.isNotBlank(bo.getProcessStatus()), SupplyEventLog::getProcessStatus, bo.getProcessStatus());
         lqw.eq(StringUtils.isNotBlank(bo.getEventScope()), SupplyEventLog::getEventScope, bo.getEventScope());
@@ -136,11 +140,12 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
     @Transactional(rollbackFor = Exception.class)
     public boolean ingestEvent(Long subscriptionId, SupplyEventIngestBo bo) {
         SupplyEventSubscription subscription = getSubscriptionOrThrow(subscriptionId);
+        String tenantScope = resolveTargetTenantId(subscription.getTenantId());
         if (!EnableStatusEnum.isEnabled(subscription.getStatus())) {
             throw new ServiceException("事件订阅已停用");
         }
         boolean duplicated = eventLogMapper.exists(Wrappers.<SupplyEventLog>lambdaQuery()
-            .eq(SupplyEventLog::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyEventLog::getTenantId, tenantScope)
             .eq(SupplyEventLog::getSubscriptionId, subscriptionId)
             .eq(SupplyEventLog::getSourceEventId, bo.getSourceEventId()));
         if (duplicated) {
@@ -149,7 +154,7 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
         Date now = new Date();
         SupplyEventLog entity = new SupplyEventLog();
         entity.setId(idGenerator.nextId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(tenantScope);
         entity.setSubscriptionId(subscriptionId);
         entity.setCloudPlatformId(subscription.getCloudPlatformId());
         entity.setEventScope(StringUtils.defaultIfBlank(bo.getEventScope(), subscription.getEventScope()));
@@ -214,9 +219,9 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
         return candidate;
     }
 
-    private void validateUnique(SupplyEventSubscriptionBo bo) {
+    private void validateUnique(SupplyEventSubscriptionBo bo, String tenantScope) {
         boolean duplicated = eventSubscriptionMapper.exists(Wrappers.<SupplyEventSubscription>lambdaQuery()
-            .eq(SupplyEventSubscription::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyEventSubscription::getTenantId, tenantScope)
             .eq(SupplyEventSubscription::getCloudPlatformId, bo.getCloudPlatformId())
             .eq(SupplyEventSubscription::getEventScope, bo.getEventScope())
             .ne(Objects.nonNull(bo.getSubscriptionId()), SupplyEventSubscription::getId, bo.getSubscriptionId()));
@@ -226,13 +231,22 @@ public class SupplyEventSubscriptionServiceImpl extends AbstractSupplyService im
     }
 
     private SupplyEventSubscription getSubscriptionOrThrow(Long subscriptionId) {
+        String tenantScope = queryTenantScope();
         SupplyEventSubscription entity = eventSubscriptionMapper.selectOne(Wrappers.<SupplyEventSubscription>lambdaQuery()
-            .eq(SupplyEventSubscription::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyEventSubscription::getTenantId, tenantScope)
             .eq(SupplyEventSubscription::getId, subscriptionId));
         if (entity == null) {
             throw new ServiceException("事件订阅不存在");
         }
         return entity;
+    }
+
+    private String resolvePlatformTenantId(Long cloudPlatformId) {
+        SupplyCloudPlatform platform = cloudPlatformMapper.selectById(cloudPlatformId);
+        if (platform == null) {
+            throw new ServiceException("云平台不存在");
+        }
+        return resolveTargetTenantId(platform.getTenantId());
     }
 
     private Map<Long, String> platformNameMap(List<Long> platformIds) {

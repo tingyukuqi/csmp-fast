@@ -39,6 +39,11 @@ public class RemoteTenantVo implements Serializable {
     private String contactPhone;
 
     /**
+     * 租户类型
+     */
+    private String tenantType;
+
+    /**
      * 企业名称
      */
     private String companyName;

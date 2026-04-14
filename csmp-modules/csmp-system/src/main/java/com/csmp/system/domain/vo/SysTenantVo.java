@@ -6,6 +6,8 @@ import io.github.linpeilie.annotations.AutoMapper;
 import lombok.Data;
 import com.csmp.common.excel.annotation.ExcelDictFormat;
 import com.csmp.common.excel.convert.ExcelDictConvert;
+import com.csmp.common.translation.annotation.Translation;
+import com.csmp.common.translation.constant.TransConstant;
 import com.csmp.system.domain.SysTenant;
 
 import java.io.Serial;
@@ -49,6 +51,19 @@ public class SysTenantVo implements Serializable {
      */
     @ExcelProperty(value = "联系电话")
     private String contactPhone;
+
+    /**
+     * 租户类型
+     */
+    @ExcelProperty(value = "租户类型", converter = ExcelDictConvert.class)
+    @ExcelDictFormat(dictType = "sys_tenant_type")
+    private String tenantType;
+
+    /**
+     * 租户类型标签
+     */
+    @Translation(type = TransConstant.DICT_TYPE_TO_LABEL, mapper = "tenantType", other = "sys_tenant_type")
+    private String tenantTypeLabel;
 
     /**
      * 企业名称

@@ -19,6 +19,7 @@ import com.csmp.supply.domain.bo.SupplySupplierUserBindBo;
 import com.csmp.supply.domain.enums.EnableStatusEnum;
 import com.csmp.supply.domain.vo.SupplyOptionVo;
 import com.csmp.supply.domain.vo.SupplySupplierPlatformAccountVo;
+import com.csmp.supply.domain.vo.SupplySupplierUserVo;
 import com.csmp.supply.domain.vo.SupplySupplierVo;
 import com.csmp.supply.mapper.SupplyCloudPlatformMapper;
 import com.csmp.supply.mapper.SupplyPhysicalResourceMapper;
@@ -27,7 +28,11 @@ import com.csmp.supply.mapper.SupplySupplierPlatformAccountMapper;
 import com.csmp.supply.mapper.SupplySupplierUserMapper;
 import com.csmp.supply.service.ISupplySupplierService;
 import com.csmp.supply.support.SupplyIdGenerator;
+import com.csmp.system.api.RemoteUserService;
+import com.csmp.system.api.domain.bo.RemoteUserOptionQueryBo;
+import com.csmp.system.api.domain.vo.RemoteUserVo;
 import lombok.RequiredArgsConstructor;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,10 +60,14 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     private final SupplyCloudPlatformMapper cloudPlatformMapper;
     private final SupplyIdGenerator idGenerator;
 
+    @DubboReference(mock = "true")
+    private RemoteUserService remoteUserService;
+
     @Override
     public TableDataInfo<SupplySupplierVo> queryPageList(SupplySupplierBo bo, PageQuery pageQuery) {
+        String tenantScope = queryTenantScope();
         LambdaQueryWrapper<SupplySupplier> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplySupplier::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplySupplier::getTenantId, tenantScope);
         lqw.eq(StringUtils.isNotBlank(bo.getSupplierCode()), SupplySupplier::getSupplierCode, bo.getSupplierCode());
         lqw.like(StringUtils.isNotBlank(bo.getSupplierName()), SupplySupplier::getSupplierName, bo.getSupplierName());
         lqw.eq(StringUtils.isNotBlank(bo.getCreditCode()), SupplySupplier::getCreditCode, bo.getCreditCode());
@@ -80,7 +89,7 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     @Override
     public boolean insertByBo(SupplySupplierBo bo) {
         validateWriteRules(bo);
-        validateSupplierUnique(bo);
+        validateSupplierUnique(bo, currentTenantId());
         SupplySupplier entity = new SupplySupplier();
         BeanUtil.copyProperties(bo, entity);
         entity.setCreditCode(StringUtils.trimToNull(bo.getCreditCode()));
@@ -94,7 +103,7 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     public boolean updateByBo(SupplySupplierBo bo) {
         SupplySupplier entity = getSupplierOrThrow(bo.getSupplierId());
         validateWriteRules(bo);
-        validateSupplierUnique(bo);
+        validateSupplierUnique(bo, resolveTargetTenantId(entity.getTenantId()));
         entity.setSupplierCode(bo.getSupplierCode());
         entity.setSupplierName(bo.getSupplierName());
         entity.setSupplierShortName(bo.getSupplierShortName());
@@ -110,6 +119,7 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
         entity.setOnboardTime(bo.getOnboardTime());
         entity.setOffboardTime(bo.getOffboardTime());
         entity.setRemark(bo.getRemark());
+        entity.setTenantId(resolveTargetTenantId(entity.getTenantId()));
         return supplierMapper.updateById(entity) > 0;
     }
 
@@ -125,15 +135,16 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     public boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid) {
         for (Long id : ids) {
             SupplySupplier supplier = getSupplierOrThrow(id);
+            String tenantScope = resolveTargetTenantId(supplier.getTenantId());
             if (Boolean.TRUE.equals(isValid)) {
                 boolean hasAccount = supplierPlatformAccountMapper.exists(Wrappers.<SupplySupplierPlatformAccount>lambdaQuery()
-                    .eq(SupplySupplierPlatformAccount::getTenantId, currentTenantId())
+                    .eq(StringUtils.isNotBlank(tenantScope), SupplySupplierPlatformAccount::getTenantId, tenantScope)
                     .eq(SupplySupplierPlatformAccount::getSupplierId, id));
                 if (hasAccount) {
                     throw new ServiceException("供应商 {} 已关联平台账号，不能删除", supplier.getSupplierName());
                 }
                 boolean hasResource = physicalResourceMapper.exists(Wrappers.<SupplyPhysicalResource>lambdaQuery()
-                    .eq(SupplyPhysicalResource::getTenantId, currentTenantId())
+                    .eq(StringUtils.isNotBlank(tenantScope), SupplyPhysicalResource::getTenantId, tenantScope)
                     .eq(SupplyPhysicalResource::getSupplierId, id));
                 if (hasResource) {
                     throw new ServiceException("供应商 {} 已关联物理资源，不能删除", supplier.getSupplierName());
@@ -145,8 +156,9 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
 
     @Override
     public List<SupplyOptionVo> queryOptions(String status) {
+        String tenantScope = queryTenantScope();
         List<SupplySupplier> list = supplierMapper.selectList(Wrappers.<SupplySupplier>lambdaQuery()
-            .eq(SupplySupplier::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplier::getTenantId, tenantScope)
             .eq(StringUtils.isNotBlank(status), SupplySupplier::getStatus, status)
             .orderByAsc(SupplySupplier::getSupplierName));
         return list.stream().map(item -> {
@@ -160,9 +172,10 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
 
     @Override
     public TableDataInfo<SupplySupplierPlatformAccountVo> queryPlatformAccountPage(Long supplierId, SupplySupplierPlatformAccountBo bo, PageQuery pageQuery) {
-        getSupplierOrThrow(supplierId);
+        SupplySupplier supplier = getSupplierOrThrow(supplierId);
+        String tenantScope = resolveTargetTenantId(supplier.getTenantId());
         LambdaQueryWrapper<SupplySupplierPlatformAccount> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplySupplierPlatformAccount::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplySupplierPlatformAccount::getTenantId, tenantScope);
         lqw.eq(SupplySupplierPlatformAccount::getSupplierId, supplierId);
         lqw.eq(Objects.nonNull(bo.getCloudPlatformId()), SupplySupplierPlatformAccount::getCloudPlatformId, bo.getCloudPlatformId());
         lqw.like(StringUtils.isNotBlank(bo.getAccountName()), SupplySupplierPlatformAccount::getAccountName, bo.getAccountName());
@@ -182,12 +195,13 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
 
     @Override
     public boolean insertPlatformAccount(SupplySupplierPlatformAccountBo bo) {
-        getSupplierOrThrow(bo.getSupplierId());
-        validatePlatformAccountUnique(bo);
+        SupplySupplier supplier = getSupplierOrThrow(bo.getSupplierId());
+        String tenantScope = resolveTargetTenantId(supplier.getTenantId());
+        validatePlatformAccountUnique(bo, tenantScope);
         SupplySupplierPlatformAccount entity = new SupplySupplierPlatformAccount();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(idGenerator.nextId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(tenantScope);
         entity.setAccountStatus(StringUtils.defaultIfBlank(bo.getAccountStatus(), EnableStatusEnum.ENABLE.getCode()));
         return supplierPlatformAccountMapper.insert(entity) > 0;
     }
@@ -195,8 +209,9 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     @Override
     public boolean updatePlatformAccount(SupplySupplierPlatformAccountBo bo) {
         SupplySupplierPlatformAccount entity = getPlatformAccountOrThrow(bo.getAccountId());
-        getSupplierOrThrow(bo.getSupplierId());
-        validatePlatformAccountUnique(bo);
+        SupplySupplier supplier = getSupplierOrThrow(bo.getSupplierId());
+        String tenantScope = resolveTargetTenantId(supplier.getTenantId());
+        validatePlatformAccountUnique(bo, tenantScope);
         entity.setSupplierId(bo.getSupplierId());
         entity.setCloudPlatformId(bo.getCloudPlatformId());
         entity.setAccountName(bo.getAccountName());
@@ -204,6 +219,7 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
         entity.setAccountIdentifier(bo.getAccountIdentifier());
         entity.setAccountStatus(StringUtils.defaultIfBlank(bo.getAccountStatus(), entity.getAccountStatus()));
         entity.setRemark(bo.getRemark());
+        entity.setTenantId(tenantScope);
         return supplierPlatformAccountMapper.updateById(entity) > 0;
     }
 
@@ -215,14 +231,37 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean bindUsers(Long supplierId, SupplySupplierUserBindBo bo) {
-        getSupplierOrThrow(supplierId);
-        supplierUserMapper.delete(Wrappers.<SupplySupplierUser>lambdaQuery()
-            .eq(SupplySupplierUser::getTenantId, currentTenantId())
+        SupplySupplier supplier = getSupplierOrThrow(supplierId);
+        String tenantScope = resolveTargetTenantId(supplier.getTenantId());
+        List<Long> userIds = bo.getUserIds().stream().filter(Objects::nonNull).distinct().toList();
+        List<SupplySupplierUser> currentBindings = supplierUserMapper.selectList(Wrappers.<SupplySupplierUser>lambdaQuery()
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplierUser::getTenantId, tenantScope)
             .eq(SupplySupplierUser::getSupplierId, supplierId));
-        for (Long userId : bo.getUserIds()) {
+        List<Long> removedBindingIds = currentBindings.stream()
+            .filter(item -> !userIds.contains(item.getUserId()))
+            .map(SupplySupplierUser::getId)
+            .toList();
+        if (!removedBindingIds.isEmpty()) {
+            supplierUserMapper.deletePhysicalByIds(removedBindingIds, tenantScope);
+        }
+        Map<Long, SupplySupplierUser> existingUserMap = userIds.isEmpty()
+            ? Collections.emptyMap()
+            : supplierUserMapper.selectList(Wrappers.<SupplySupplierUser>lambdaQuery()
+                .eq(StringUtils.isNotBlank(tenantScope), SupplySupplierUser::getTenantId, tenantScope)
+                .in(SupplySupplierUser::getUserId, userIds)).stream()
+                .collect(Collectors.toMap(SupplySupplierUser::getUserId, item -> item, (a, b) -> a));
+        for (Long userId : userIds) {
+            SupplySupplierUser existing = existingUserMap.get(userId);
+            if (existing != null) {
+                if (!Objects.equals(existing.getSupplierId(), supplierId)) {
+                    existing.setSupplierId(supplierId);
+                    supplierUserMapper.updateById(existing);
+                }
+                continue;
+            }
             SupplySupplierUser bind = new SupplySupplierUser();
             bind.setId(idGenerator.nextId());
-            bind.setTenantId(currentTenantId());
+            bind.setTenantId(tenantScope);
             bind.setSupplierId(supplierId);
             bind.setUserId(userId);
             supplierUserMapper.insert(bind);
@@ -230,20 +269,74 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
         return true;
     }
 
+    @Override
+    public List<SupplySupplierUserVo> queryUserList(Long supplierId) {
+        SupplySupplier supplier = getSupplierOrThrow(supplierId);
+        String tenantScope = resolveTargetTenantId(supplier.getTenantId());
+        List<SupplySupplierUser> bindings = supplierUserMapper.selectList(Wrappers.<SupplySupplierUser>lambdaQuery()
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplierUser::getTenantId, tenantScope)
+            .eq(SupplySupplierUser::getSupplierId, supplierId)
+            .orderByDesc(SupplySupplierUser::getCreateTime));
+        if (bindings.isEmpty()) {
+            return List.of();
+        }
+        List<Long> userIds = bindings.stream()
+            .map(SupplySupplierUser::getUserId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        Map<Long, RemoteUserVo> userMap = Collections.emptyMap();
+        if (remoteUserService != null && !userIds.isEmpty()) {
+            List<RemoteUserVo> users = remoteUserService.selectListByIds(userIds);
+            if (users != null) {
+                userMap = users.stream()
+                    .collect(Collectors.toMap(RemoteUserVo::getUserId, item -> item, (a, b) -> a));
+            }
+        }
+        Map<Long, RemoteUserVo> finalUserMap = userMap;
+        return bindings.stream()
+            .map(item -> toSupplierUserVo(item, finalUserMap.get(item.getUserId())))
+            .toList();
+    }
+
+    @Override
+    public List<RemoteUserVo> queryBindableUsers(Long supplierId, String keyword, Long deptId) {
+        SupplySupplier supplier = getSupplierOrThrow(supplierId);
+        String tenantScope = resolveTargetTenantId(supplier.getTenantId());
+        List<Long> excludeUserIds = supplierUserMapper.selectList(Wrappers.<SupplySupplierUser>lambdaQuery()
+                .eq(StringUtils.isNotBlank(tenantScope), SupplySupplierUser::getTenantId, tenantScope)
+                .ne(SupplySupplierUser::getSupplierId, supplierId))
+            .stream()
+            .filter(item -> !Objects.equals(item.getSupplierId(), supplierId))
+            .map(SupplySupplierUser::getUserId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        if (remoteUserService == null) {
+            return List.of();
+        }
+        RemoteUserOptionQueryBo queryBo = new RemoteUserOptionQueryBo();
+        queryBo.setKeyword(StringUtils.trimToNull(keyword));
+        queryBo.setDeptId(deptId);
+        queryBo.setExcludeUserIds(excludeUserIds);
+        List<RemoteUserVo> users = remoteUserService.selectOptionList(queryBo);
+        return users == null ? List.of() : users;
+    }
+
     private void validateWriteRules(SupplySupplierBo bo) {
         validateCreditCode(bo.getCreditCode());
     }
 
-    private void validateSupplierUnique(SupplySupplierBo bo) {
+    private void validateSupplierUnique(SupplySupplierBo bo, String tenantScope) {
         SupplySupplier duplicatedCode = supplierMapper.selectOne(Wrappers.<SupplySupplier>lambdaQuery()
-            .eq(SupplySupplier::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplier::getTenantId, tenantScope)
             .eq(SupplySupplier::getSupplierCode, bo.getSupplierCode())
             .ne(Objects.nonNull(bo.getSupplierId()), SupplySupplier::getId, bo.getSupplierId()));
         if (duplicatedCode != null) {
             throw new ServiceException("供应商编码已存在");
         }
         SupplySupplier duplicatedName = supplierMapper.selectOne(Wrappers.<SupplySupplier>lambdaQuery()
-            .eq(SupplySupplier::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplier::getTenantId, tenantScope)
             .eq(SupplySupplier::getSupplierName, bo.getSupplierName())
             .ne(Objects.nonNull(bo.getSupplierId()), SupplySupplier::getId, bo.getSupplierId()));
         if (duplicatedName != null) {
@@ -251,9 +344,9 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
         }
     }
 
-    private void validatePlatformAccountUnique(SupplySupplierPlatformAccountBo bo) {
+    private void validatePlatformAccountUnique(SupplySupplierPlatformAccountBo bo, String tenantScope) {
         boolean exist = supplierPlatformAccountMapper.exists(Wrappers.<SupplySupplierPlatformAccount>lambdaQuery()
-            .eq(SupplySupplierPlatformAccount::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplierPlatformAccount::getTenantId, tenantScope)
             .eq(SupplySupplierPlatformAccount::getAccountIdentifier, bo.getAccountIdentifier())
             .ne(Objects.nonNull(bo.getAccountId()), SupplySupplierPlatformAccount::getId, bo.getAccountId()));
         if (exist) {
@@ -262,8 +355,9 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     }
 
     private SupplySupplier getSupplierOrThrow(Long supplierId) {
+        String tenantScope = queryTenantScope();
         SupplySupplier supplier = supplierMapper.selectOne(Wrappers.<SupplySupplier>lambdaQuery()
-            .eq(SupplySupplier::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplier::getTenantId, tenantScope)
             .eq(SupplySupplier::getId, supplierId));
         if (supplier == null) {
             throw new ServiceException("供应商不存在");
@@ -272,8 +366,9 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
     }
 
     private SupplySupplierPlatformAccount getPlatformAccountOrThrow(Long accountId) {
+        String tenantScope = queryTenantScope();
         SupplySupplierPlatformAccount account = supplierPlatformAccountMapper.selectOne(Wrappers.<SupplySupplierPlatformAccount>lambdaQuery()
-            .eq(SupplySupplierPlatformAccount::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplierPlatformAccount::getTenantId, tenantScope)
             .eq(SupplySupplierPlatformAccount::getId, accountId));
         if (account == null) {
             throw new ServiceException("平台账号不存在");
@@ -297,6 +392,23 @@ public class SupplySupplierServiceImpl extends AbstractSupplyService implements 
         BeanUtil.copyProperties(entity, vo);
         vo.setAccountId(entity.getId());
         vo.setCloudPlatformName(platformNameMap.get(entity.getCloudPlatformId()));
+        return vo;
+    }
+
+    private SupplySupplierUserVo toSupplierUserVo(SupplySupplierUser entity, RemoteUserVo user) {
+        SupplySupplierUserVo vo = new SupplySupplierUserVo();
+        vo.setBindingId(entity.getId());
+        vo.setSupplierId(entity.getSupplierId());
+        vo.setUserId(entity.getUserId());
+        vo.setCreateTime(entity.getCreateTime());
+        if (user != null) {
+            vo.setDeptId(user.getDeptId());
+            vo.setUserName(user.getUserName());
+            vo.setNickName(user.getNickName());
+            vo.setPhonenumber(user.getPhonenumber());
+            vo.setEmail(user.getEmail());
+            vo.setStatus(user.getStatus());
+        }
         return vo;
     }
 }

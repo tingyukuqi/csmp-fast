@@ -1,5 +1,6 @@
 package com.csmp.supply.service.impl;
 
+import com.csmp.common.core.constant.TenantConstants;
 import com.csmp.common.core.exception.ServiceException;
 import com.csmp.common.core.utils.StringUtils;
 import com.csmp.common.json.utils.JsonUtils;
@@ -28,6 +29,18 @@ public abstract class AbstractSupplyService {
             throw new ServiceException("当前租户上下文不存在");
         }
         return tenantId;
+    }
+
+    protected boolean hasGlobalTenantDataAccess() {
+        return StringUtils.equals(currentTenantId(), TenantConstants.DEFAULT_TENANT_ID);
+    }
+
+    protected String queryTenantScope() {
+        return hasGlobalTenantDataAccess() ? null : currentTenantId();
+    }
+
+    protected String resolveTargetTenantId(String tenantId) {
+        return StringUtils.defaultIfBlank(tenantId, currentTenantId());
     }
 
     protected Long currentUserId() {

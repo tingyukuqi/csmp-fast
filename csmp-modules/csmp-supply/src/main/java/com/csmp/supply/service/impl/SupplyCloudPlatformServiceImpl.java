@@ -44,8 +44,9 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
 
     @Override
     public TableDataInfo<SupplyCloudPlatformVo> queryPageList(SupplyCloudPlatformBo bo, PageQuery pageQuery) {
+        String tenantScope = queryTenantScope();
         LambdaQueryWrapper<SupplyCloudPlatform> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplyCloudPlatform::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplyCloudPlatform::getTenantId, tenantScope);
         lqw.eq(StringUtils.isNotBlank(bo.getPlatformCode()), SupplyCloudPlatform::getPlatformCode, bo.getPlatformCode());
         lqw.like(StringUtils.isNotBlank(bo.getPlatformName()), SupplyCloudPlatform::getPlatformName, bo.getPlatformName());
         lqw.eq(StringUtils.isNotBlank(bo.getPlatformType()), SupplyCloudPlatform::getPlatformType, bo.getPlatformType());
@@ -70,7 +71,7 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
     @Override
     public boolean insertByBo(SupplyCloudPlatformBo bo) {
         validateWriteRules(bo);
-        validateUnique(bo);
+        validateUnique(bo, currentTenantId());
         SupplyCloudPlatform entity = new SupplyCloudPlatform();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(idGenerator.nextId());
@@ -83,7 +84,7 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
     public boolean updateByBo(SupplyCloudPlatformBo bo) {
         SupplyCloudPlatform entity = getPlatformOrThrow(bo.getPlatformId());
         validateWriteRules(bo);
-        validateUnique(bo);
+        validateUnique(bo, resolveTargetTenantId(entity.getTenantId()));
         entity.setPlatformCode(bo.getPlatformCode());
         entity.setPlatformName(bo.getPlatformName());
         entity.setPlatformType(bo.getPlatformType());
@@ -94,22 +95,24 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
         entity.setApiVersion(bo.getApiVersion());
         entity.setDescription(bo.getDescription());
         entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), entity.getStatus()));
+        entity.setTenantId(resolveTargetTenantId(entity.getTenantId()));
         return cloudPlatformMapper.updateById(entity) > 0;
     }
 
     @Override
     public boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid) {
         for (Long id : ids) {
-            getPlatformOrThrow(id);
+            SupplyCloudPlatform platform = getPlatformOrThrow(id);
+            String tenantScope = resolveTargetTenantId(platform.getTenantId());
             if (Boolean.TRUE.equals(isValid)) {
                 boolean hasCollectConfig = collectConfigMapper.exists(Wrappers.<SupplyCollectConfig>lambdaQuery()
-                    .eq(SupplyCollectConfig::getTenantId, currentTenantId())
+                    .eq(StringUtils.isNotBlank(tenantScope), SupplyCollectConfig::getTenantId, tenantScope)
                     .eq(SupplyCollectConfig::getCloudPlatformId, id));
                 if (hasCollectConfig) {
                     throw new ServiceException("云平台已关联采集配置，不能删除");
                 }
                 boolean hasEventSubscription = eventSubscriptionMapper.exists(Wrappers.<SupplyEventSubscription>lambdaQuery()
-                    .eq(SupplyEventSubscription::getTenantId, currentTenantId())
+                    .eq(StringUtils.isNotBlank(tenantScope), SupplyEventSubscription::getTenantId, tenantScope)
                     .eq(SupplyEventSubscription::getCloudPlatformId, id));
                 if (hasEventSubscription) {
                     throw new ServiceException("云平台已关联事件订阅，不能删除");
@@ -121,8 +124,9 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
 
     @Override
     public List<SupplyOptionVo> queryOptions(String providerCode, String status) {
+        String tenantScope = queryTenantScope();
         List<SupplyCloudPlatform> list = cloudPlatformMapper.selectList(Wrappers.<SupplyCloudPlatform>lambdaQuery()
-            .eq(SupplyCloudPlatform::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyCloudPlatform::getTenantId, tenantScope)
             .eq(StringUtils.isNotBlank(providerCode), SupplyCloudPlatform::getProviderCode, providerCode)
             .eq(StringUtils.isNotBlank(status), SupplyCloudPlatform::getStatus, status)
             .orderByAsc(SupplyCloudPlatform::getPlatformName));
@@ -139,16 +143,16 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
         validateHttpUrl(bo.getAccessUrl(), "访问地址");
     }
 
-    private void validateUnique(SupplyCloudPlatformBo bo) {
+    private void validateUnique(SupplyCloudPlatformBo bo, String tenantScope) {
         boolean duplicatedCode = cloudPlatformMapper.exists(Wrappers.<SupplyCloudPlatform>lambdaQuery()
-            .eq(SupplyCloudPlatform::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyCloudPlatform::getTenantId, tenantScope)
             .eq(SupplyCloudPlatform::getPlatformCode, bo.getPlatformCode())
             .ne(Objects.nonNull(bo.getPlatformId()), SupplyCloudPlatform::getId, bo.getPlatformId()));
         if (duplicatedCode) {
             throw new ServiceException("云平台编码已存在");
         }
         boolean duplicatedName = cloudPlatformMapper.exists(Wrappers.<SupplyCloudPlatform>lambdaQuery()
-            .eq(SupplyCloudPlatform::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyCloudPlatform::getTenantId, tenantScope)
             .eq(SupplyCloudPlatform::getPlatformName, bo.getPlatformName())
             .ne(Objects.nonNull(bo.getPlatformId()), SupplyCloudPlatform::getId, bo.getPlatformId()));
         if (duplicatedName) {
@@ -157,8 +161,9 @@ public class SupplyCloudPlatformServiceImpl extends AbstractSupplyService implem
     }
 
     private SupplyCloudPlatform getPlatformOrThrow(Long platformId) {
+        String tenantScope = queryTenantScope();
         SupplyCloudPlatform entity = cloudPlatformMapper.selectOne(Wrappers.<SupplyCloudPlatform>lambdaQuery()
-            .eq(SupplyCloudPlatform::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyCloudPlatform::getTenantId, tenantScope)
             .eq(SupplyCloudPlatform::getId, platformId));
         if (entity == null) {
             throw new ServiceException("云平台不存在");

@@ -23,7 +23,10 @@ import com.csmp.supply.mapper.SupplyOrgCloudTenantBindMapper;
 import com.csmp.supply.service.ISupplyCloudTenantService;
 import com.csmp.supply.service.ISupplyCollectConfigService;
 import com.csmp.system.api.RemoteDeptService;
+import com.csmp.system.api.RemoteTenantService;
+import com.csmp.system.api.domain.vo.RemoteTenantVo;
 import lombok.RequiredArgsConstructor;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -41,6 +44,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SupplyCloudTenantServiceImpl extends AbstractSupplyService implements ISupplyCloudTenantService {
 
+    private static final String CLOUD_TENANT_TYPE = "cloud_tenant";
+    private static final String UNBOUND_STATUS = "unbound";
+
     private final SupplyCloudTenantMapper cloudTenantMapper;
     private final SupplyCloudPlatformMapper cloudPlatformMapper;
     private final SupplyOrgCloudTenantBindMapper bindMapper;
@@ -48,10 +54,14 @@ public class SupplyCloudTenantServiceImpl extends AbstractSupplyService implemen
     private final ISupplyCollectConfigService collectConfigService;
     private final RemoteDeptService remoteDeptService;
 
+    @DubboReference(mock = "true")
+    private RemoteTenantService remoteTenantService;
+
     @Override
     public TableDataInfo<SupplyCloudTenantVo> queryPageList(SupplyCloudTenantBo bo, PageQuery pageQuery) {
+        String tenantScope = queryTenantScope();
         LambdaQueryWrapper<SupplyCloudTenant> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplyCloudTenant::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplyCloudTenant::getTenantId, tenantScope);
         lqw.eq(Objects.nonNull(bo.getCloudPlatformId()), SupplyCloudTenant::getCloudPlatformId, bo.getCloudPlatformId());
         lqw.eq(StringUtils.isNotBlank(bo.getTenantStatus()), SupplyCloudTenant::getTenantStatus, bo.getTenantStatus());
         lqw.and(StringUtils.isNotBlank(bo.getKeyword()), w -> w.like(SupplyCloudTenant::getCloudTenantName, bo.getKeyword())
@@ -71,7 +81,7 @@ public class SupplyCloudTenantServiceImpl extends AbstractSupplyService implemen
         List<SupplyOrgCloudTenantBind> binds = snapshotIds.isEmpty()
             ? List.of()
             : bindMapper.selectList(Wrappers.<SupplyOrgCloudTenantBind>lambdaQuery()
-                .eq(SupplyOrgCloudTenantBind::getTenantId, currentTenantId())
+                .eq(StringUtils.isNotBlank(tenantScope), SupplyOrgCloudTenantBind::getTenantId, tenantScope)
                 .in(SupplyOrgCloudTenantBind::getCloudTenantSnapshotId, snapshotIds));
         Map<Long, SupplyOrgCloudTenantBind> bindMap = binds.stream().collect(Collectors.toMap(SupplyOrgCloudTenantBind::getCloudTenantSnapshotId, item -> item, (a, b) -> a));
         List<Long> deptIds = binds.stream().map(SupplyOrgCloudTenantBind::getOrgId).filter(Objects::nonNull).distinct().toList();
@@ -85,8 +95,9 @@ public class SupplyCloudTenantServiceImpl extends AbstractSupplyService implemen
 
     @Override
     public CollectExecuteResultVo refreshByCloudPlatformId(Long cloudPlatformId, Long triggerUserId) {
+        String tenantScope = queryTenantScope();
         SupplyCollectConfig config = collectConfigMapper.selectOne(Wrappers.<SupplyCollectConfig>lambdaQuery()
-            .eq(SupplyCollectConfig::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyCollectConfig::getTenantId, tenantScope)
             .eq(SupplyCollectConfig::getCloudPlatformId, cloudPlatformId)
             .eq(SupplyCollectConfig::getCollectScope, "tenant")
             .last("limit 1"));
@@ -105,18 +116,54 @@ public class SupplyCloudTenantServiceImpl extends AbstractSupplyService implemen
 
     @Override
     public List<SupplyOptionVo> queryOptions(Long cloudPlatformId, String keyword, String bindStatus) {
-        SupplyCloudTenantBo bo = new SupplyCloudTenantBo();
-        bo.setCloudPlatformId(cloudPlatformId);
-        bo.setKeyword(keyword);
-        bo.setBindStatus(bindStatus);
-        List<SupplyCloudTenantVo> list = queryPageList(bo, new PageQuery(Integer.MAX_VALUE, 1)).getRows();
-        return list.stream().map(item -> {
-            SupplyOptionVo vo = new SupplyOptionVo();
-            vo.setLabel(item.getCloudTenantName());
-            vo.setValue(item.getCloudTenantSnapshotId());
-            vo.setExtra(Map.of("cloudTenantCode", item.getCloudTenantCode(), "bindStatus", item.getBindStatus()));
-            return vo;
-        }).toList();
+        String tenantScope = queryTenantScope();
+        Map<Long, String> bindStatusMap = bindMapper.selectList(Wrappers.<SupplyOrgCloudTenantBind>lambdaQuery()
+                .eq(StringUtils.isNotBlank(tenantScope), SupplyOrgCloudTenantBind::getTenantId, tenantScope))
+            .stream()
+            .collect(Collectors.toMap(SupplyOrgCloudTenantBind::getCloudTenantSnapshotId, item -> item.getBindStatus(), (a, b) -> a));
+        return listCloudTenants(keyword).stream()
+            .map(item -> new CloudTenantOptionSource(item, bindStatusMap.getOrDefault(item.getId(), UNBOUND_STATUS)))
+            .filter(item -> StringUtils.isBlank(bindStatus)
+                || StringUtils.equalsIgnoreCase(bindStatus, item.bindStatus()))
+            .map(item -> buildOption(item.tenant(), item.bindStatus(), cloudPlatformId))
+            .toList();
+    }
+
+    private List<RemoteTenantVo> listCloudTenants(String keyword) {
+        List<RemoteTenantVo> tenants = remoteTenantService.queryList();
+        if (tenants == null) {
+            return List.of();
+        }
+        return tenants.stream()
+            .filter(item -> StringUtils.equalsIgnoreCase(CLOUD_TENANT_TYPE, getTenantType(item)))
+            .filter(item -> StringUtils.isBlank(keyword)
+                || StringUtils.containsAnyIgnoreCase(item.getCompanyName(), keyword)
+                || StringUtils.containsAnyIgnoreCase(item.getTenantId(), keyword))
+            .toList();
+    }
+
+    private SupplyOptionVo buildOption(RemoteTenantVo item, String bindStatus, Long cloudPlatformId) {
+        SupplyOptionVo vo = new SupplyOptionVo();
+        vo.setLabel(item.getCompanyName());
+        vo.setValue(item.getId());
+        vo.setExtra(Map.of(
+            "tenantId", item.getTenantId(),
+            "tenantType", getTenantType(item),
+            "bindStatus", StringUtils.defaultIfBlank(bindStatus, UNBOUND_STATUS),
+            "cloudPlatformId", cloudPlatformId
+        ));
+        return vo;
+    }
+
+    private String getTenantType(RemoteTenantVo item) {
+        try {
+            return BeanUtil.getProperty(item, "tenantType");
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private record CloudTenantOptionSource(RemoteTenantVo tenant, String bindStatus) {
     }
 
     private SupplyCloudTenantVo toVo(SupplyCloudTenant entity, Map<Long, String> platformNameMap,

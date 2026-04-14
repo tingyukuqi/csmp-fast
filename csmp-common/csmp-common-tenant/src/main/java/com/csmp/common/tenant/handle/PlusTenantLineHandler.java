@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
+import com.csmp.common.core.constant.TenantConstants;
 import com.csmp.common.core.utils.StringUtils;
 import com.csmp.common.tenant.helper.TenantHelper;
 import com.csmp.common.tenant.properties.TenantProperties;
@@ -40,6 +41,9 @@ public class PlusTenantLineHandler implements TenantLineHandler {
         String tenantId = TenantHelper.getTenantId();
         // 判断是否有租户
         if (StringUtils.isNotBlank(tenantId)) {
+            if (StringUtils.equals(tenantId, TenantConstants.DEFAULT_TENANT_ID)) {
+                return true;
+            }
             // 不需要过滤租户的表
             List<String> excludes = tenantProperties.getExcludes();
             // 非业务表

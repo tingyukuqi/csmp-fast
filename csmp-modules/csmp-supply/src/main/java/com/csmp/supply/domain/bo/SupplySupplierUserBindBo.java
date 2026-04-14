@@ -1,6 +1,6 @@
 package com.csmp.supply.domain.bo;
 
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
@@ -13,6 +13,6 @@ import java.util.List;
 @Data
 public class SupplySupplierUserBindBo {
 
-    @NotEmpty(message = "用户ID不能为空")
+    @NotNull(message = "用户ID不能为空")
     private List<Long> userIds;
 }

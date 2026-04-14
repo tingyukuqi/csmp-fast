@@ -1,21 +1,22 @@
 package com.csmp.supply.service.impl;
-
 import com.csmp.common.core.exception.ServiceException;
 import com.csmp.supply.domain.SupplyCloudPlatform;
-import com.csmp.supply.domain.SupplyCloudTenant;
 import com.csmp.supply.domain.bo.SupplyOrgCloudTenantBindBo;
 import com.csmp.supply.mapper.SupplyCloudPlatformMapper;
 import com.csmp.supply.mapper.SupplyCloudTenantMapper;
 import com.csmp.supply.mapper.SupplyOrgCloudTenantBindMapper;
 import com.csmp.supply.support.SupplyIdGenerator;
 import com.csmp.system.api.RemoteDeptService;
+import com.csmp.system.api.RemoteTenantService;
 import com.csmp.system.api.domain.vo.RemoteDeptVo;
+import com.csmp.system.api.domain.vo.RemoteTenantVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
@@ -40,6 +41,8 @@ class SupplyOrgCloudTenantBindServiceImplTest {
     @Mock
     private RemoteDeptService remoteDeptService;
     @Mock
+    private RemoteTenantService remoteTenantService;
+    @Mock
     private SupplyIdGenerator idGenerator;
 
     private SupplyOrgCloudTenantBindServiceImpl bindService;
@@ -54,20 +57,22 @@ class SupplyOrgCloudTenantBindServiceImplTest {
             idGenerator
         ));
         lenient().doReturn(TENANT_ID).when(bindService).currentTenantId();
+        ReflectionTestUtils.setField(bindService, "remoteTenantService", remoteTenantService);
     }
 
     @Test
     void insertByBoShouldRejectDuplicateActiveBinding() {
         SupplyCloudPlatform platform = new SupplyCloudPlatform();
         platform.setId(1L);
-        SupplyCloudTenant cloudTenant = new SupplyCloudTenant();
+        RemoteTenantVoExt cloudTenant = new RemoteTenantVoExt();
         cloudTenant.setId(2L);
+        cloudTenant.setTenantType("cloud_tenant");
         RemoteDeptVo deptVo = new RemoteDeptVo();
         deptVo.setDeptId(3L);
         deptVo.setDeptName("上海事业部");
 
         when(cloudPlatformMapper.selectById(1L)).thenReturn(platform);
-        when(cloudTenantMapper.selectById(2L)).thenReturn(cloudTenant);
+        when(remoteTenantService.queryList()).thenReturn(List.of(cloudTenant));
         when(remoteDeptService.selectDeptsByList()).thenReturn(List.of(deptVo));
         when(bindMapper.exists(any())).thenReturn(true);
 
@@ -81,14 +86,6 @@ class SupplyOrgCloudTenantBindServiceImplTest {
 
     @Test
     void insertByBoShouldRejectUnboundStatusWithoutInvalidTime() {
-        SupplyCloudPlatform platform = new SupplyCloudPlatform();
-        platform.setId(1L);
-        SupplyCloudTenant cloudTenant = new SupplyCloudTenant();
-        cloudTenant.setId(2L);
-        RemoteDeptVo deptVo = new RemoteDeptVo();
-        deptVo.setDeptId(3L);
-        deptVo.setDeptName("上海事业部");
-
         SupplyOrgCloudTenantBindBo bo = new SupplyOrgCloudTenantBindBo();
         bo.setCloudPlatformId(1L);
         bo.setCloudTenantSnapshotId(2L);
@@ -96,5 +93,40 @@ class SupplyOrgCloudTenantBindServiceImplTest {
         bo.setBindStatus("unbound");
 
         assertThrows(ServiceException.class, () -> bindService.insertByBo(bo));
+    }
+
+    @Test
+    void insertByBoShouldRejectTenantThatIsNotCloudTenant() {
+        SupplyCloudPlatform platform = new SupplyCloudPlatform();
+        platform.setId(1L);
+        RemoteTenantVoExt platformTenant = new RemoteTenantVoExt();
+        platformTenant.setId(2L);
+        platformTenant.setTenantType("platform_operation");
+        RemoteDeptVo deptVo = new RemoteDeptVo();
+        deptVo.setDeptId(3L);
+        deptVo.setDeptName("上海事业部");
+
+        when(cloudPlatformMapper.selectById(1L)).thenReturn(platform);
+        when(remoteTenantService.queryList()).thenReturn(List.of(platformTenant));
+
+        SupplyOrgCloudTenantBindBo bo = new SupplyOrgCloudTenantBindBo();
+        bo.setCloudPlatformId(1L);
+        bo.setCloudTenantSnapshotId(2L);
+        bo.setOrgId(3L);
+
+        assertThrows(ServiceException.class, () -> bindService.insertByBo(bo));
+    }
+
+    private static class RemoteTenantVoExt extends RemoteTenantVo {
+
+        private String tenantType;
+
+        public String getTenantType() {
+            return tenantType;
+        }
+
+        public void setTenantType(String tenantType) {
+            this.tenantType = tenantType;
+        }
     }
 }

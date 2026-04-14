@@ -7,7 +7,9 @@ import com.csmp.supply.domain.bo.SupplySupplierPlatformAccountBo;
 import com.csmp.supply.domain.bo.SupplySupplierUserBindBo;
 import com.csmp.supply.domain.vo.SupplyOptionVo;
 import com.csmp.supply.domain.vo.SupplySupplierPlatformAccountVo;
+import com.csmp.supply.domain.vo.SupplySupplierUserVo;
 import com.csmp.supply.domain.vo.SupplySupplierVo;
+import com.csmp.system.api.domain.vo.RemoteUserVo;
 
 import java.util.Collection;
 import java.util.List;
@@ -42,4 +44,8 @@ public interface ISupplySupplierService {
     boolean deletePlatformAccounts(Collection<Long> ids);
 
     boolean bindUsers(Long supplierId, SupplySupplierUserBindBo bo);
+
+    List<SupplySupplierUserVo> queryUserList(Long supplierId);
+
+    List<RemoteUserVo> queryBindableUsers(Long supplierId, String keyword, Long deptId);
 }

@@ -75,6 +75,7 @@ create table if not exists sys_tenant
     tenant_id         varchar(20)   not null,
     contact_user_name varchar(20)   default null::varchar,
     contact_phone     varchar(20)   default null::varchar,
+    tenant_type       varchar(32)   default 'platform_operation'::varchar,
     company_name      varchar(30)   default null::varchar,
     license_number    varchar(30)   default null::varchar,
     address           varchar(200)  default null::varchar,
@@ -98,6 +99,7 @@ create table if not exists sys_tenant
 comment on table   sys_tenant                    is '租户表';
 comment on column  sys_tenant.tenant_id          is '租户编号';
 comment on column  sys_tenant.contact_phone      is '联系电话';
+comment on column  sys_tenant.tenant_type        is '租户类型';
 comment on column  sys_tenant.company_name       is '企业名称';
 comment on column  sys_tenant.company_name       is '联系人';
 comment on column  sys_tenant.license_number     is '统一社会信用代码';
@@ -121,7 +123,7 @@ comment on column  sys_tenant.update_time        is '更新时间';
 -- 初始化-租户表数据
 -- ----------------------------
 
-insert into sys_tenant values(1, '000000', '管理组', '15888888888', 'XXX有限公司', null, null, '多租户通用后台管理管理系统', null, null, null, null, -1, '0', '0', 103, 1, now(), null, null);
+insert into sys_tenant values(1, '000000', '管理组', '15888888888', 'platform_operation', 'XXX有限公司', null, null, '多租户通用后台管理管理系统', null, null, null, null, -1, '0', '0', 103, 1, now(), null, null);
 
 
 -- ----------------------------
@@ -972,6 +974,7 @@ insert into sys_dict_type values(12, '000000', '设备类型', 'sys_device_type'
 INSERT INTO sys_dict_type VALUES (13, '000000', '业务状态', 'wf_business_status', 103, 1, now(), NULL, NULL, '业务状态列表');
 INSERT INTO sys_dict_type VALUES (14, '000000', '表单类型', 'wf_form_type', 103, 1, now(), NULL, NULL, '表单类型列表');
 INSERT INTO sys_dict_type VALUES (15, '000000', '任务状态', 'wf_task_status', 103, 1, now(), NULL, NULL, '任务状态');
+INSERT INTO sys_dict_type VALUES (16, '000000', '租户类型', 'sys_tenant_type', 103, 1, now(), NULL, NULL, '租户类型列表');
 
 -- ----------------------------
 -- 12、字典数据表
@@ -1063,6 +1066,10 @@ INSERT INTO sys_dict_data VALUES (51, '000000', 4, '作废', 'invalid', 'wf_task
 INSERT INTO sys_dict_data VALUES (52, '000000', 5, '退回', 'back', 'wf_task_status', '', 'danger', 'N', 103, 1, now(), NULL, NULL, '退回');
 INSERT INTO sys_dict_data VALUES (53, '000000', 6, '终止', 'termination', 'wf_task_status', '', 'danger', 'N', 103, 1, now(), NULL, NULL, '终止');
 INSERT INTO sys_dict_data VALUES (54, '000000', 7, '转办', 'transfer', 'wf_task_status', '', 'primary', 'N', 103, 1, now(), NULL, NULL, '转办');
+INSERT INTO sys_dict_data VALUES (55, '000000', 1, '平台运营', 'platform_operation', 'sys_tenant_type', '', 'primary', 'Y', 103, 1, now(), NULL, NULL, '平台运营');
+INSERT INTO sys_dict_data VALUES (56, '000000', 2, '平台监管', 'platform_regulation', 'sys_tenant_type', '', 'warning', 'N', 103, 1, now(), NULL, NULL, '平台监管');
+INSERT INTO sys_dict_data VALUES (57, '000000', 3, '云租户', 'cloud_tenant', 'sys_tenant_type', '', 'success', 'N', 103, 1, now(), NULL, NULL, '云租户');
+INSERT INTO sys_dict_data VALUES (58, '000000', 4, '代维服务商', 'service_provider', 'sys_tenant_type', '', 'info', 'N', 103, 1, now(), NULL, NULL, '代维服务商');
 INSERT INTO sys_dict_data VALUES (55, '000000', 8, '委托', 'depute', 'wf_task_status', '', 'primary', 'N', 103, 1, now(), NULL, NULL, '委托');
 INSERT INTO sys_dict_data VALUES (56, '000000', 9, '抄送', 'copy', 'wf_task_status', '', 'primary', 'N', 103, 1, now(), NULL, NULL, '抄送');
 INSERT INTO sys_dict_data VALUES (57, '000000', 10, '加签', 'sign', 'wf_task_status', '', 'primary', 'N', 103, 1, now(), NULL, NULL, '加签');
@@ -1593,4 +1600,3 @@ insert into sys_menu values('2003', '组织修改', '2000', '3', '', '', '', 1, 
 insert into sys_menu values('2004', '组织删除', '2000', '4', '', '', '', 1, 0, 'F', '0', '0', 'system:org:remove', '#', 103, 1, now(), null, null, '');
 -- 组织机构导出
 insert into sys_menu values('2005', '组织导出', '2000', '5', '', '', '', 1, 0, 'F', '0', '0', 'system:org:export', '#', 103, 1, now(), null, null, '');
-

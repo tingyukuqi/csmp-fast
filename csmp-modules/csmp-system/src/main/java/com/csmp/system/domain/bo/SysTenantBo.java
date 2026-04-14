@@ -47,6 +47,11 @@ public class SysTenantBo extends BaseEntity {
     private String contactPhone;
 
     /**
+     * 租户类型
+     */
+    private String tenantType;
+
+    /**
      * 企业名称
      */
     @NotBlank(message = "企业名称不能为空", groups = { AddGroup.class, EditGroup.class })
@@ -110,6 +115,5 @@ public class SysTenantBo extends BaseEntity {
      * 租户状态（0正常 1停用）
      */
     private String status;
-
 
 }

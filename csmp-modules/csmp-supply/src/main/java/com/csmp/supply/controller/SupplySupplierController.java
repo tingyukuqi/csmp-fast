@@ -17,8 +17,10 @@ import com.csmp.supply.domain.bo.SupplySupplierPlatformAccountBo;
 import com.csmp.supply.domain.bo.SupplySupplierUserBindBo;
 import com.csmp.supply.domain.vo.SupplyOptionVo;
 import com.csmp.supply.domain.vo.SupplySupplierPlatformAccountVo;
+import com.csmp.supply.domain.vo.SupplySupplierUserVo;
 import com.csmp.supply.domain.vo.SupplySupplierVo;
 import com.csmp.supply.service.ISupplySupplierService;
+import com.csmp.system.api.domain.vo.RemoteUserVo;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -124,5 +126,19 @@ public class SupplySupplierController extends BaseController {
     @PutMapping("/{supplierId}/users")
     public R<Void> bindUsers(@PathVariable Long supplierId, @Validated @RequestBody SupplySupplierUserBindBo bo) {
         return toAjax(supplierService.bindUsers(supplierId, bo));
+    }
+
+    @SaCheckPermission("supply:supplier:edit")
+    @GetMapping("/{supplierId}/bindable-users")
+    public R<List<RemoteUserVo>> bindableUsers(@PathVariable Long supplierId,
+                                               @RequestParam(required = false) String keyword,
+                                               @RequestParam(required = false) Long deptId) {
+        return R.ok(supplierService.queryBindableUsers(supplierId, keyword, deptId));
+    }
+
+    @SaCheckPermission("supply:supplier:list")
+    @GetMapping("/{supplierId}/users")
+    public R<List<SupplySupplierUserVo>> userList(@PathVariable Long supplierId) {
+        return R.ok(supplierService.queryUserList(supplierId));
     }
 }

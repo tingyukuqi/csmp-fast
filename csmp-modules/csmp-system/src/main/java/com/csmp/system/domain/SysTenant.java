@@ -45,6 +45,11 @@ public class SysTenant extends BaseEntity {
     private String contactPhone;
 
     /**
+     * 租户类型
+     */
+    private String tenantType;
+
+    /**
      * 企业名称
      */
     private String companyName;

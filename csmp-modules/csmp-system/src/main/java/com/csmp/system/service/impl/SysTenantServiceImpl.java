@@ -46,6 +46,8 @@ import java.util.*;
 @Service
 public class SysTenantServiceImpl implements ISysTenantService {
 
+    private static final String DEFAULT_TENANT_TYPE = "platform_operation";
+
     private final SysTenantMapper baseMapper;
     private final SysTenantPackageMapper tenantPackageMapper;
     private final SysUserMapper userMapper;
@@ -109,6 +111,7 @@ public class SysTenantServiceImpl implements ISysTenantService {
         lqw.eq(StringUtils.isNotBlank(visibleTenantId), SysTenant::getTenantId, visibleTenantId);
         lqw.like(StringUtils.isNotBlank(bo.getContactUserName()), SysTenant::getContactUserName, bo.getContactUserName());
         lqw.eq(StringUtils.isNotBlank(bo.getContactPhone()), SysTenant::getContactPhone, bo.getContactPhone());
+        lqw.eq(StringUtils.isNotBlank(bo.getTenantType()), SysTenant::getTenantType, bo.getTenantType());
         lqw.like(StringUtils.isNotBlank(bo.getCompanyName()), SysTenant::getCompanyName, bo.getCompanyName());
         lqw.eq(StringUtils.isNotBlank(bo.getLicenseNumber()), SysTenant::getLicenseNumber, bo.getLicenseNumber());
         lqw.eq(StringUtils.isNotBlank(bo.getAddress()), SysTenant::getAddress, bo.getAddress());
@@ -145,6 +148,7 @@ public class SysTenantServiceImpl implements ISysTenantService {
     @Transactional(rollbackFor = Exception.class)
     public Boolean insertByBo(SysTenantBo bo) {
         SysTenant add = MapstructUtils.convert(bo, SysTenant.class);
+        add.setTenantType(StringUtils.defaultIfBlank(bo.getTenantType(), DEFAULT_TENANT_TYPE));
 
         // 获取所有租户编号
         List<String> tenantIds = baseMapper.selectObjs(

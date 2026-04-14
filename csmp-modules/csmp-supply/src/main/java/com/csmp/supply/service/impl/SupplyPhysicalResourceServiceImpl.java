@@ -75,12 +75,12 @@ public class SupplyPhysicalResourceServiceImpl extends AbstractSupplyService imp
     @Override
     public boolean insertByBo(SupplyPhysicalResourceBo bo) {
         Long supplierId = resolveSupplierId(bo.getSupplierId());
-        validateResourceUnique(bo, supplierId);
-        ensureSupplierEnabled(supplierId);
+        SupplySupplier supplier = ensureSupplierEnabled(supplierId);
+        validateResourceUnique(bo, resolveTargetTenantId(supplier.getTenantId()));
         SupplyPhysicalResource entity = new SupplyPhysicalResource();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(idGenerator.nextId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(resolveTargetTenantId(supplier.getTenantId()));
         entity.setSupplierId(supplierId);
         return physicalResourceMapper.insert(entity) > 0;
     }
@@ -89,11 +89,11 @@ public class SupplyPhysicalResourceServiceImpl extends AbstractSupplyService imp
     public boolean updateByBo(SupplyPhysicalResourceBo bo) {
         SupplyPhysicalResource entity = getResourceOrThrow(bo.getResourceId());
         Long supplierId = resolveSupplierId(Objects.requireNonNullElse(bo.getSupplierId(), entity.getSupplierId()));
-        validateResourceUnique(bo, supplierId);
-        ensureSupplierEnabled(supplierId);
+        SupplySupplier supplier = ensureSupplierEnabled(supplierId);
+        validateResourceUnique(bo, resolveTargetTenantId(supplier.getTenantId()));
         BeanUtil.copyProperties(bo, entity);
         entity.setId(bo.getResourceId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(resolveTargetTenantId(supplier.getTenantId()));
         entity.setSupplierId(supplierId);
         return physicalResourceMapper.updateById(entity) > 0;
     }
@@ -117,7 +117,7 @@ public class SupplyPhysicalResourceServiceImpl extends AbstractSupplyService imp
                 bo.setPurchaseDate(parseDate(item.getPurchaseDate()));
                 bo.setExpireDate(parseDate(item.getExpireDate()));
                 SupplyPhysicalResource existing = physicalResourceMapper.selectOne(Wrappers.<SupplyPhysicalResource>lambdaQuery()
-                    .eq(SupplyPhysicalResource::getTenantId, currentTenantId())
+                    .eq(StringUtils.isNotBlank(queryTenantScope()), SupplyPhysicalResource::getTenantId, queryTenantScope())
                     .eq(SupplyPhysicalResource::getResourceCode, item.getResourceCode()));
                 if (existing == null) {
                     insertByBo(bo);
@@ -144,8 +144,9 @@ public class SupplyPhysicalResourceServiceImpl extends AbstractSupplyService imp
     }
 
     private LambdaQueryWrapper<SupplyPhysicalResource> buildQueryWrapper(SupplyPhysicalResourceBo bo) {
+        String tenantScope = queryTenantScope();
         LambdaQueryWrapper<SupplyPhysicalResource> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplyPhysicalResource::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplyPhysicalResource::getTenantId, tenantScope);
         lqw.eq(Objects.nonNull(bo.getSupplierId()), SupplyPhysicalResource::getSupplierId, bo.getSupplierId());
         lqw.eq(StringUtils.isNotBlank(bo.getDeviceType()), SupplyPhysicalResource::getDeviceType, bo.getDeviceType());
         lqw.eq(StringUtils.isNotBlank(bo.getResourceStatus()), SupplyPhysicalResource::getResourceStatus, bo.getResourceStatus());
@@ -163,8 +164,9 @@ public class SupplyPhysicalResourceServiceImpl extends AbstractSupplyService imp
         if (supplierId != null) {
             return supplierId;
         }
+        String tenantScope = queryTenantScope();
         SupplySupplierUser bind = supplierUserMapper.selectOne(Wrappers.<SupplySupplierUser>lambdaQuery()
-            .eq(SupplySupplierUser::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplySupplierUser::getTenantId, tenantScope)
             .eq(SupplySupplierUser::getUserId, currentUserId()));
         if (bind == null) {
             throw new ServiceException("未找到当前用户的供应商绑定关系，请先选择供应商");
@@ -172,7 +174,7 @@ public class SupplyPhysicalResourceServiceImpl extends AbstractSupplyService imp
         return bind.getSupplierId();
     }
 
-    private void ensureSupplierEnabled(Long supplierId) {
+    private SupplySupplier ensureSupplierEnabled(Long supplierId) {
         SupplySupplier supplier = supplierMapper.selectById(supplierId);
         if (supplier == null) {
             throw new ServiceException("供应商不存在");
@@ -180,31 +182,30 @@ public class SupplyPhysicalResourceServiceImpl extends AbstractSupplyService imp
         if (!EnableStatusEnum.isEnabled(supplier.getStatus())) {
             throw new ServiceException("供应商已停用，禁止新增或修改物理资源");
         }
+        return supplier;
     }
 
-    private void validateResourceUnique(SupplyPhysicalResourceBo bo, Long supplierId) {
+    private void validateResourceUnique(SupplyPhysicalResourceBo bo, String tenantScope) {
         boolean duplicatedCode = physicalResourceMapper.exists(Wrappers.<SupplyPhysicalResource>lambdaQuery()
-            .eq(SupplyPhysicalResource::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyPhysicalResource::getTenantId, tenantScope)
             .eq(SupplyPhysicalResource::getResourceCode, bo.getResourceCode())
             .ne(Objects.nonNull(bo.getResourceId()), SupplyPhysicalResource::getId, bo.getResourceId()));
         if (duplicatedCode) {
             throw new ServiceException("资源编号已存在");
         }
         boolean duplicatedSn = physicalResourceMapper.exists(Wrappers.<SupplyPhysicalResource>lambdaQuery()
-            .eq(SupplyPhysicalResource::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyPhysicalResource::getTenantId, tenantScope)
             .eq(SupplyPhysicalResource::getSerialNumber, bo.getSerialNumber())
             .ne(Objects.nonNull(bo.getResourceId()), SupplyPhysicalResource::getId, bo.getResourceId()));
         if (duplicatedSn) {
             throw new ServiceException("序列号已存在");
         }
-        if (supplierId == null) {
-            throw new ServiceException("供应商不能为空");
-        }
     }
 
     private SupplyPhysicalResource getResourceOrThrow(Long resourceId) {
+        String tenantScope = queryTenantScope();
         SupplyPhysicalResource entity = physicalResourceMapper.selectOne(Wrappers.<SupplyPhysicalResource>lambdaQuery()
-            .eq(SupplyPhysicalResource::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyPhysicalResource::getTenantId, tenantScope)
             .eq(SupplyPhysicalResource::getId, resourceId));
         if (entity == null) {
             throw new ServiceException("物理资源不存在");

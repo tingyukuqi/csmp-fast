@@ -60,8 +60,9 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
 
     @Override
     public TableDataInfo<SupplyCollectConfigVo> queryPageList(SupplyCollectConfigBo bo, PageQuery pageQuery) {
+        String tenantScope = queryTenantScope();
         LambdaQueryWrapper<SupplyCollectConfig> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplyCollectConfig::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplyCollectConfig::getTenantId, tenantScope);
         lqw.eq(Objects.nonNull(bo.getCloudPlatformId()), SupplyCollectConfig::getCloudPlatformId, bo.getCloudPlatformId());
         lqw.eq(StringUtils.isNotBlank(bo.getProviderCode()), SupplyCollectConfig::getProviderCode, bo.getProviderCode());
         lqw.eq(StringUtils.isNotBlank(bo.getCollectScope()), SupplyCollectConfig::getCollectScope, bo.getCollectScope());
@@ -82,11 +83,12 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
     @Override
     public boolean insertByBo(SupplyCollectConfigBo bo) {
         validateWriteRules(bo, null);
-        validateConfigUnique(bo);
+        String tenantScope = resolvePlatformTenantId(bo.getCloudPlatformId());
+        validateConfigUnique(bo, tenantScope);
         SupplyCollectConfig entity = new SupplyCollectConfig();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(idGenerator.nextId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(tenantScope);
         entity.setStatus(StringUtils.defaultIfBlank(bo.getStatus(), EnableStatusEnum.ENABLE.getCode()));
         if (entity.getVerifySsl() == null) {
             entity.setVerifySsl(Boolean.TRUE);
@@ -104,7 +106,8 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
     public boolean updateByBo(SupplyCollectConfigBo bo) {
         SupplyCollectConfig entity = getConfigOrThrow(bo.getCollectConfigId());
         validateWriteRules(bo, entity);
-        validateConfigUnique(bo);
+        String tenantScope = resolvePlatformTenantId(bo.getCloudPlatformId());
+        validateConfigUnique(bo, tenantScope);
         String existingStatus = entity.getStatus();
         Integer existingTimeoutSeconds = entity.getTimeoutSeconds();
         Integer existingRetryTimes = entity.getRetryTimes();
@@ -112,7 +115,7 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
         String effectiveAuthPayload = resolveAuthPayload(bo, entity);
         BeanUtil.copyProperties(bo, entity);
         entity.setId(bo.getCollectConfigId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(tenantScope);
         entity.setAuthPayload(effectiveAuthPayload);
         entity.setTimeoutSeconds(bo.getTimeoutSeconds() != null ? bo.getTimeoutSeconds() : Objects.requireNonNullElse(existingTimeoutSeconds, 30));
         entity.setRetryTimes(bo.getRetryTimes() != null ? bo.getRetryTimes() : Objects.requireNonNullElse(existingRetryTimes, 0));
@@ -145,13 +148,14 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
     @Transactional(rollbackFor = Exception.class)
     public CollectExecuteResultVo executeCollect(CollectExecuteBo bo) {
         SupplyCollectConfig config = getConfigOrThrow(bo.getCollectConfigId());
+        String tenantScope = resolveTargetTenantId(config.getTenantId());
         if (!EnableStatusEnum.isEnabled(config.getStatus())) {
             throw new ServiceException("采集配置已停用，禁止执行");
         }
         Date now = new Date();
         SupplyCollectLog log = new SupplyCollectLog();
         log.setId(idGenerator.nextId());
-        log.setTenantId(currentTenantId());
+        log.setTenantId(tenantScope);
         log.setCollectConfigId(config.getId());
         log.setCloudPlatformId(config.getCloudPlatformId());
         log.setCollectScope(config.getCollectScope());
@@ -204,9 +208,10 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
 
     @Override
     public TableDataInfo<SupplyCollectLogVo> queryLogPage(Long collectConfigId, SupplyCollectLogBo bo, PageQuery pageQuery) {
-        getConfigOrThrow(collectConfigId);
+        SupplyCollectConfig config = getConfigOrThrow(collectConfigId);
+        String tenantScope = resolveTargetTenantId(config.getTenantId());
         LambdaQueryWrapper<SupplyCollectLog> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplyCollectLog::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplyCollectLog::getTenantId, tenantScope);
         lqw.eq(SupplyCollectLog::getCollectConfigId, collectConfigId);
         lqw.eq(StringUtils.isNotBlank(bo.getResultStatus()), SupplyCollectLog::getResultStatus, bo.getResultStatus());
         lqw.eq(StringUtils.isNotBlank(bo.getExecuteMode()), SupplyCollectLog::getExecuteMode, bo.getExecuteMode());
@@ -232,9 +237,9 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
         return bo.getAuthPayload();
     }
 
-    private void validateConfigUnique(SupplyCollectConfigBo bo) {
+    private void validateConfigUnique(SupplyCollectConfigBo bo, String tenantScope) {
         boolean duplicated = collectConfigMapper.exists(Wrappers.<SupplyCollectConfig>lambdaQuery()
-            .eq(SupplyCollectConfig::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyCollectConfig::getTenantId, tenantScope)
             .eq(SupplyCollectConfig::getCloudPlatformId, bo.getCloudPlatformId())
             .eq(SupplyCollectConfig::getCollectScope, bo.getCollectScope())
             .ne(Objects.nonNull(bo.getCollectConfigId()), SupplyCollectConfig::getId, bo.getCollectConfigId()));
@@ -244,13 +249,22 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
     }
 
     private SupplyCollectConfig getConfigOrThrow(Long collectConfigId) {
+        String tenantScope = queryTenantScope();
         SupplyCollectConfig config = collectConfigMapper.selectOne(Wrappers.<SupplyCollectConfig>lambdaQuery()
-            .eq(SupplyCollectConfig::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyCollectConfig::getTenantId, tenantScope)
             .eq(SupplyCollectConfig::getId, collectConfigId));
         if (config == null) {
             throw new ServiceException("采集配置不存在");
         }
         return config;
+    }
+
+    private String resolvePlatformTenantId(Long cloudPlatformId) {
+        SupplyCloudPlatform platform = cloudPlatformMapper.selectById(cloudPlatformId);
+        if (platform == null) {
+            throw new ServiceException("云平台不存在");
+        }
+        return resolveTargetTenantId(platform.getTenantId());
     }
 
     private Map<Long, String> platformNameMap(List<Long> platformIds) {
@@ -281,14 +295,15 @@ public class SupplyCollectConfigServiceImpl extends AbstractSupplyService implem
     }
 
     private void ensureTenantSnapshot(SupplyCollectConfig config, Date now) {
+        String tenantScope = resolveTargetTenantId(config.getTenantId());
         SupplyCloudTenant tenant = cloudTenantMapper.selectOne(Wrappers.<SupplyCloudTenant>lambdaQuery()
-            .eq(SupplyCloudTenant::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyCloudTenant::getTenantId, tenantScope)
             .eq(SupplyCloudTenant::getCloudPlatformId, config.getCloudPlatformId())
             .eq(SupplyCloudTenant::getExternalTenantId, "default"));
         if (tenant == null) {
             tenant = new SupplyCloudTenant();
             tenant.setId(idGenerator.nextId());
-            tenant.setTenantId(currentTenantId());
+            tenant.setTenantId(tenantScope);
             tenant.setCloudPlatformId(config.getCloudPlatformId());
             tenant.setExternalTenantId("default");
             tenant.setCloudTenantName("默认云租户");

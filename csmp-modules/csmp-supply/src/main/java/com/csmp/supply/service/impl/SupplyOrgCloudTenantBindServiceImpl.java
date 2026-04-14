@@ -20,8 +20,11 @@ import com.csmp.supply.mapper.SupplyOrgCloudTenantBindMapper;
 import com.csmp.supply.service.ISupplyOrgCloudTenantBindService;
 import com.csmp.supply.support.SupplyIdGenerator;
 import com.csmp.system.api.RemoteDeptService;
+import com.csmp.system.api.RemoteTenantService;
 import com.csmp.system.api.domain.vo.RemoteDeptVo;
+import com.csmp.system.api.domain.vo.RemoteTenantVo;
 import lombok.RequiredArgsConstructor;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -41,16 +44,22 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SupplyOrgCloudTenantBindServiceImpl extends AbstractSupplyService implements ISupplyOrgCloudTenantBindService {
 
+    private static final String CLOUD_TENANT_TYPE = "cloud_tenant";
+
     private final SupplyOrgCloudTenantBindMapper bindMapper;
     private final SupplyCloudPlatformMapper cloudPlatformMapper;
     private final SupplyCloudTenantMapper cloudTenantMapper;
     private final RemoteDeptService remoteDeptService;
     private final SupplyIdGenerator idGenerator;
 
+    @DubboReference(mock = "true")
+    private RemoteTenantService remoteTenantService;
+
     @Override
     public TableDataInfo<SupplyOrgCloudTenantBindVo> queryPageList(SupplyOrgCloudTenantBindBo bo, PageQuery pageQuery) {
+        String tenantScope = queryTenantScope();
         LambdaQueryWrapper<SupplyOrgCloudTenantBind> lqw = Wrappers.lambdaQuery();
-        lqw.eq(SupplyOrgCloudTenantBind::getTenantId, currentTenantId());
+        lqw.eq(StringUtils.isNotBlank(tenantScope), SupplyOrgCloudTenantBind::getTenantId, tenantScope);
         lqw.eq(Objects.nonNull(bo.getOrgId()), SupplyOrgCloudTenantBind::getOrgId, bo.getOrgId());
         lqw.eq(Objects.nonNull(bo.getCloudPlatformId()), SupplyOrgCloudTenantBind::getCloudPlatformId, bo.getCloudPlatformId());
         lqw.eq(Objects.nonNull(bo.getCloudTenantSnapshotId()), SupplyOrgCloudTenantBind::getCloudTenantSnapshotId, bo.getCloudTenantSnapshotId());
@@ -63,10 +72,7 @@ public class SupplyOrgCloudTenantBindServiceImpl extends AbstractSupplyService i
         Map<Long, String> platformNameMap = platformIds.isEmpty() ? Collections.emptyMap() :
             cloudPlatformMapper.selectBatchIds(platformIds).stream()
                 .collect(Collectors.toMap(SupplyCloudPlatform::getId, SupplyCloudPlatform::getPlatformName, (a, b) -> a));
-        List<Long> cloudTenantIds = page.getRecords().stream().map(SupplyOrgCloudTenantBind::getCloudTenantSnapshotId).filter(Objects::nonNull).distinct().toList();
-        Map<Long, String> cloudTenantNameMap = cloudTenantIds.isEmpty() ? Collections.emptyMap() :
-            cloudTenantMapper.selectBatchIds(cloudTenantIds).stream()
-                .collect(Collectors.toMap(SupplyCloudTenant::getId, SupplyCloudTenant::getCloudTenantName, (a, b) -> a));
+        Map<Long, String> cloudTenantNameMap = cloudTenantNameMap();
         List<SupplyOrgCloudTenantBindVo> list = page.getRecords().stream()
             .map(item -> toVo(item, deptNameMap, platformNameMap, cloudTenantNameMap))
             .toList();
@@ -79,8 +85,7 @@ public class SupplyOrgCloudTenantBindServiceImpl extends AbstractSupplyService i
         Map<Long, String> deptNameMap = remoteDeptService.selectDeptNamesByIds(List.of(entity.getOrgId()));
         Map<Long, String> platformNameMap = cloudPlatformMapper.selectBatchIds(List.of(entity.getCloudPlatformId())).stream()
             .collect(Collectors.toMap(SupplyCloudPlatform::getId, SupplyCloudPlatform::getPlatformName));
-        Map<Long, String> cloudTenantNameMap = cloudTenantMapper.selectBatchIds(List.of(entity.getCloudTenantSnapshotId())).stream()
-            .collect(Collectors.toMap(SupplyCloudTenant::getId, SupplyCloudTenant::getCloudTenantName));
+        Map<Long, String> cloudTenantNameMap = cloudTenantNameMap();
         return toVo(entity, deptNameMap, platformNameMap, cloudTenantNameMap);
     }
 
@@ -89,11 +94,11 @@ public class SupplyOrgCloudTenantBindServiceImpl extends AbstractSupplyService i
         Date effectiveTime = bo.getEffectiveTime() == null ? new Date() : bo.getEffectiveTime();
         String bindStatus = StringUtils.defaultIfBlank(bo.getBindStatus(), "bound");
         validateWriteRules(bindStatus, effectiveTime, bo.getInvalidTime());
-        validateBind(bo);
+        String tenantScope = validateBind(bo);
         SupplyOrgCloudTenantBind entity = new SupplyOrgCloudTenantBind();
         BeanUtil.copyProperties(bo, entity);
         entity.setId(idGenerator.nextId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(tenantScope);
         entity.setBindStatus(bindStatus);
         entity.setEffectiveTime(effectiveTime);
         return bindMapper.insert(entity) > 0;
@@ -106,10 +111,10 @@ public class SupplyOrgCloudTenantBindServiceImpl extends AbstractSupplyService i
         Date effectiveTime = bo.getEffectiveTime() == null ? entity.getEffectiveTime() : bo.getEffectiveTime();
         Date invalidTime = bo.getInvalidTime() == null ? entity.getInvalidTime() : bo.getInvalidTime();
         validateWriteRules(bindStatus, effectiveTime, invalidTime);
-        validateBind(bo);
+        String tenantScope = validateBind(bo);
         BeanUtil.copyProperties(bo, entity);
         entity.setId(bo.getBindingId());
-        entity.setTenantId(currentTenantId());
+        entity.setTenantId(tenantScope);
         entity.setBindStatus(bindStatus);
         entity.setEffectiveTime(effectiveTime);
         entity.setInvalidTime(invalidTime);
@@ -140,34 +145,61 @@ public class SupplyOrgCloudTenantBindServiceImpl extends AbstractSupplyService i
         }
     }
 
-    private void validateBind(SupplyOrgCloudTenantBindBo bo) {
-        if (cloudPlatformMapper.selectById(bo.getCloudPlatformId()) == null) {
+    private String validateBind(SupplyOrgCloudTenantBindBo bo) {
+        SupplyCloudPlatform cloudPlatform = cloudPlatformMapper.selectById(bo.getCloudPlatformId());
+        if (cloudPlatform == null) {
             throw new ServiceException("云平台不存在");
         }
-        if (cloudTenantMapper.selectById(bo.getCloudTenantSnapshotId()) == null) {
-            throw new ServiceException("云租户快照不存在");
+        if (!cloudTenantMap().containsKey(bo.getCloudTenantSnapshotId())) {
+            throw new ServiceException("云租户不存在");
         }
         boolean orgExists = remoteDeptService.selectDeptsByList().stream().map(RemoteDeptVo::getDeptId).anyMatch(id -> Objects.equals(id, bo.getOrgId()));
         if (!orgExists) {
             throw new ServiceException("组织不存在");
         }
+        String tenantScope = resolveTargetTenantId(cloudPlatform.getTenantId());
         boolean duplicated = bindMapper.exists(Wrappers.<SupplyOrgCloudTenantBind>lambdaQuery()
-            .eq(SupplyOrgCloudTenantBind::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyOrgCloudTenantBind::getTenantId, tenantScope)
             .eq(SupplyOrgCloudTenantBind::getCloudTenantSnapshotId, bo.getCloudTenantSnapshotId())
             .ne(Objects.nonNull(bo.getBindingId()), SupplyOrgCloudTenantBind::getId, bo.getBindingId()));
         if (duplicated) {
             throw new ServiceException("该云租户已存在绑定关系");
         }
+        return tenantScope;
     }
 
     private SupplyOrgCloudTenantBind getBindOrThrow(Long bindingId) {
+        String tenantScope = queryTenantScope();
         SupplyOrgCloudTenantBind entity = bindMapper.selectOne(Wrappers.<SupplyOrgCloudTenantBind>lambdaQuery()
-            .eq(SupplyOrgCloudTenantBind::getTenantId, currentTenantId())
+            .eq(StringUtils.isNotBlank(tenantScope), SupplyOrgCloudTenantBind::getTenantId, tenantScope)
             .eq(SupplyOrgCloudTenantBind::getId, bindingId));
         if (entity == null) {
             throw new ServiceException("绑定关系不存在");
         }
         return entity;
+    }
+
+    private Map<Long, String> cloudTenantNameMap() {
+        return cloudTenantMap().values().stream()
+            .collect(Collectors.toMap(RemoteTenantVo::getId, RemoteTenantVo::getCompanyName, (a, b) -> a));
+    }
+
+    private Map<Long, RemoteTenantVo> cloudTenantMap() {
+        List<RemoteTenantVo> tenants = remoteTenantService.queryList();
+        if (tenants == null) {
+            return Collections.emptyMap();
+        }
+        return tenants.stream()
+            .filter(item -> StringUtils.equalsIgnoreCase(CLOUD_TENANT_TYPE, getTenantType(item)))
+            .collect(Collectors.toMap(RemoteTenantVo::getId, item -> item, (a, b) -> a));
+    }
+
+    private String getTenantType(RemoteTenantVo item) {
+        try {
+            return BeanUtil.getProperty(item, "tenantType");
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private SupplyOrgCloudTenantBindVo toVo(SupplyOrgCloudTenantBind entity, Map<Long, String> deptNameMap,

@@ -2,6 +2,7 @@ package com.csmp.supply.service.impl;
 
 import com.csmp.common.core.exception.ServiceException;
 import com.csmp.common.core.utils.SpringUtils;
+import com.csmp.supply.domain.SupplyCloudPlatform;
 import com.csmp.supply.domain.SupplyEventLog;
 import com.csmp.supply.domain.SupplyEventSubscription;
 import com.csmp.supply.domain.bo.SupplyEventIngestBo;

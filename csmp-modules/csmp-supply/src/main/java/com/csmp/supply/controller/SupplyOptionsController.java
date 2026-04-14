@@ -35,7 +35,7 @@ public class SupplyOptionsController {
 
     @SaCheckPermission(value = {"supply:binding:list", "supply:cloudTenant:list"}, mode = SaMode.OR)
     @GetMapping("/cloud-tenants")
-    public R<List<SupplyOptionVo>> cloudTenantOptions(@RequestParam Long cloudPlatformId,
+    public R<List<SupplyOptionVo>> n公司(@RequestParam Long cloudPlatformId,
                                                       @RequestParam(required = false) String keyword,
                                                       @RequestParam(required = false) String bindStatus) {
         return R.ok(cloudTenantService.queryOptions(cloudPlatformId, keyword, bindStatus));

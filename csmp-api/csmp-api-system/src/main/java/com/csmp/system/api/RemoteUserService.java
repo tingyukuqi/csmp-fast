@@ -3,6 +3,7 @@ package com.csmp.system.api;
 import com.csmp.common.core.exception.ServiceException;
 import com.csmp.common.core.exception.user.UserException;
 import com.csmp.system.api.domain.bo.RemoteUserBo;
+import com.csmp.system.api.domain.bo.RemoteUserOptionQueryBo;
 import com.csmp.system.api.domain.vo.RemoteUserVo;
 import com.csmp.system.api.model.LoginUser;
 import com.csmp.system.api.model.XcxLoginUser;
@@ -124,6 +125,14 @@ public interface RemoteUserService {
      * @return 用户列表
      */
     List<RemoteUserVo> selectListByIds(List<Long> userIds);
+
+    /**
+     * 查询用户选项列表
+     *
+     * @param bo 查询条件
+     * @return 用户列表
+     */
+    List<RemoteUserVo> selectOptionList(RemoteUserOptionQueryBo bo);
 
     /**
      * 通过角色ID查询用户ID

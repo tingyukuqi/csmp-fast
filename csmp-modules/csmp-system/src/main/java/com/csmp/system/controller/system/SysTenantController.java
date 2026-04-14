@@ -17,7 +17,9 @@ import com.csmp.common.mybatis.core.page.TableDataInfo;
 import com.csmp.common.tenant.helper.TenantHelper;
 import com.csmp.common.web.core.BaseController;
 import com.csmp.system.domain.bo.SysTenantBo;
+import com.csmp.system.domain.vo.SysDictDataVo;
 import com.csmp.system.domain.vo.SysTenantVo;
+import com.csmp.system.service.ISysDictTypeService;
 import com.csmp.system.service.ISysTenantService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotBlank;
@@ -43,7 +45,10 @@ import java.util.List;
 @ConditionalOnProperty(value = "tenant.enable", havingValue = "true")
 public class SysTenantController extends BaseController {
 
+    private static final String TENANT_TYPE_DICT = "sys_tenant_type";
+
     private final ISysTenantService tenantService;
+    private final ISysDictTypeService dictTypeService;
 
     /**
      * 查询租户列表
@@ -53,6 +58,16 @@ public class SysTenantController extends BaseController {
     @GetMapping("/list")
     public TableDataInfo<SysTenantVo> list(SysTenantBo bo, PageQuery pageQuery) {
         return tenantService.queryPageList(bo, pageQuery);
+    }
+
+    /**
+     * 查询租户类型下拉
+     */
+    @SaCheckRole(TenantConstants.SUPER_ADMIN_ROLE_KEY)
+    @SaCheckPermission("system:tenant:list")
+    @GetMapping("/typeOptions")
+    public R<List<SysDictDataVo>> typeOptions() {
+        return R.ok(dictTypeService.selectDictDataByType(TENANT_TYPE_DICT));
     }
 
     /**
