@@ -46,11 +46,6 @@ public class LoginUser implements Serializable {
     private String deptName;
 
     /**
-     * 组织ID（从用户所属部门的 ancestors 推导，根部门的 deptId 即 orgId）
-     */
-    private Long orgId;
-
-    /**
      * 用户唯一标识
      */
     private String token;

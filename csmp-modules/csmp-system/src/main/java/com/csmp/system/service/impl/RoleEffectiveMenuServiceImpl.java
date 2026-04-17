@@ -1,14 +1,7 @@
 package com.csmp.system.service.impl;
 
-import cn.dev33.satoken.exception.NotLoginException;
-import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.csmp.common.core.constant.SystemConstants;
-import com.csmp.common.core.utils.StringUtils;
-import com.csmp.common.satoken.utils.LoginHelper;
-import com.csmp.system.api.model.LoginUser;
 import com.csmp.system.domain.SysRole;
 import com.csmp.system.domain.SysRoleEffectiveMenu;
 import com.csmp.system.domain.SysRoleHiddenMenu;
@@ -17,9 +10,9 @@ import com.csmp.system.mapper.SysRoleEffectiveMenuMapper;
 import com.csmp.system.mapper.SysRoleHiddenMenuMapper;
 import com.csmp.system.mapper.SysRoleMapper;
 import com.csmp.system.mapper.SysRoleMenuMapper;
-import com.csmp.system.mapper.SysUserRoleMapper;
 import com.csmp.system.service.IRoleEffectiveMenuService;
 import com.csmp.system.service.IRoleHierarchyService;
+import com.csmp.system.service.ISysRoleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,8 +32,8 @@ public class RoleEffectiveMenuServiceImpl implements IRoleEffectiveMenuService {
     private final SysRoleMenuMapper roleMenuMapper;
     private final SysRoleHiddenMenuMapper hiddenMenuMapper;
     private final SysRoleMapper roleMapper;
-    private final SysUserRoleMapper userRoleMapper;
     private final IRoleHierarchyService hierarchyService;
+    private final ISysRoleService roleService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -49,13 +42,10 @@ public class RoleEffectiveMenuServiceImpl implements IRoleEffectiveMenuService {
         List<Long> ancestorChain = hierarchyService.getAncestorChain(roleId);
 
         // 2. 按链顺序合并菜单
-        LinkedHashMap<Long, SysRoleEffectiveMenu> effectiveRecordMap = new LinkedHashMap<>();
+        Set<Long> effectiveMenuIds = new LinkedHashSet<>();
+        List<SysRoleEffectiveMenu> effectiveRecords = new ArrayList<>();
 
         for (Long chainRoleId : ancestorChain) {
-            SysRole chainRole = roleMapper.selectById(chainRoleId);
-            if (chainRole == null || !SystemConstants.NORMAL.equals(chainRole.getStatus())) {
-                continue;
-            }
             // 获取该角色自有菜单
             List<Long> ownMenuIds = roleMenuMapper.selectList(
                     new LambdaQueryWrapper<SysRoleMenu>()
@@ -70,24 +60,20 @@ public class RoleEffectiveMenuServiceImpl implements IRoleEffectiveMenuService {
 
             // 合并自有菜单
             for (Long menuId : ownMenuIds) {
-                if (!effectiveRecordMap.containsKey(menuId) || chainRoleId.equals(roleId)) {
+                if (effectiveMenuIds.add(menuId)) {
                     SysRoleEffectiveMenu record = new SysRoleEffectiveMenu();
                     record.setRoleId(roleId);
                     record.setMenuId(menuId);
                     record.setSource(chainRoleId.equals(roleId) ? "OWN" : "INHERITED");
                     record.setInheritFromRoleId(chainRoleId.equals(roleId) ? null : chainRoleId);
-                    effectiveRecordMap.put(menuId, record);
+                    effectiveRecords.add(record);
                 }
             }
 
             // 应用隐藏：移除被隐藏的菜单
             if (!hiddenMenuIds.isEmpty()) {
-                hiddenMenuIds.forEach(menuId -> {
-                    SysRoleEffectiveMenu record = effectiveRecordMap.get(menuId);
-                    if (record != null && !"OWN".equals(record.getSource())) {
-                        effectiveRecordMap.remove(menuId);
-                    }
-                });
+                effectiveMenuIds.removeAll(hiddenMenuIds);
+                effectiveRecords.removeIf(r -> hiddenMenuIds.contains(r.getMenuId()));
             }
         }
 
@@ -96,7 +82,6 @@ public class RoleEffectiveMenuServiceImpl implements IRoleEffectiveMenuService {
             .eq(SysRoleEffectiveMenu::getRoleId, roleId));
 
         // 4. 批量插入新的有效菜单
-        List<SysRoleEffectiveMenu> effectiveRecords = new ArrayList<>(effectiveRecordMap.values());
         if (CollUtil.isNotEmpty(effectiveRecords)) {
             effectiveMenuMapper.insertBatch(effectiveRecords);
         }
@@ -116,7 +101,7 @@ public class RoleEffectiveMenuServiceImpl implements IRoleEffectiveMenuService {
         }
         // 刷新完成后清除受影响角色关联的在线用户
         for (Long descendantId : descendantIds) {
-            cleanOnlineUserByRole(descendantId);
+            roleService.cleanOnlineUserByRole(descendantId);
         }
     }
 
@@ -139,33 +124,5 @@ public class RoleEffectiveMenuServiceImpl implements IRoleEffectiveMenuService {
     public Set<Long> getEffectiveMenuIds(Long roleId) {
         List<Long> ids = effectiveMenuMapper.selectEffectiveMenuIdsByRoleId(roleId);
         return new HashSet<>(ids);
-    }
-
-    private void cleanOnlineUserByRole(Long roleId) {
-        Long num = userRoleMapper.selectCount(new LambdaQueryWrapper<com.csmp.system.domain.SysUserRole>()
-            .eq(com.csmp.system.domain.SysUserRole::getRoleId, roleId));
-        if (num == 0) {
-            return;
-        }
-        List<String> keys = StpUtil.searchTokenValue("", 0, -1, false);
-        if (CollUtil.isEmpty(keys)) {
-            return;
-        }
-        keys.parallelStream().forEach(key -> {
-            String token = StringUtils.substringAfterLast(key, ":");
-            if (StpUtil.stpLogic.getTokenActiveTimeoutByToken(token) < -1) {
-                return;
-            }
-            LoginUser loginUser = LoginHelper.getLoginUser(token);
-            if (ObjectUtil.isNull(loginUser) || CollUtil.isEmpty(loginUser.getRoles())) {
-                return;
-            }
-            if (loginUser.getRoles().stream().anyMatch(r -> r.getRoleId().equals(roleId))) {
-                try {
-                    StpUtil.logoutByTokenValue(token);
-                } catch (NotLoginException ignored) {
-                }
-            }
-        });
     }
 }

@@ -41,14 +41,6 @@ public interface ISysDeptService {
     List<Tree<Long>> selectDeptTreeList(SysDeptBo dept);
 
     /**
-     * 查询指定组织下的部门树结构（不含组织自身）
-     *
-     * @param orgId 组织ID
-     * @return 部门树信息集合
-     */
-    List<Tree<Long>> selectDeptTreeByOrgId(Long orgId);
-
-    /**
      * 构建前端所需要下拉树结构
      *
      * @param depts 部门列表

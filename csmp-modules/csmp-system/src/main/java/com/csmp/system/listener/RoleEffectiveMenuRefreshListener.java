@@ -5,6 +5,7 @@ import com.csmp.system.service.IRoleEffectiveMenuService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,6 +19,7 @@ public class RoleEffectiveMenuRefreshListener {
     private final IRoleEffectiveMenuService effectiveMenuService;
 
     @EventListener
+    @Async
     public void onRolePermissionChanged(RolePermissionChangedEvent event) {
         log.info("收到角色权限变更事件, affectedRoleIds={}, cascade={}",
             event.getAffectedRoleIds(), event.isCascade());
