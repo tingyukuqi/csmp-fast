@@ -1,0 +1,81 @@
+package com.csmp.supply.service.impl;
+
+import com.csmp.common.core.exception.ServiceException;
+import com.csmp.supply.domain.SupplyCloudPlatform;
+import com.csmp.supply.domain.SupplyCloudTenant;
+import com.csmp.supply.domain.bo.SupplyOrgCloudTenantBindBo;
+import com.csmp.supply.mapper.SupplyCloudPlatformMapper;
+import com.csmp.supply.mapper.SupplyCloudTenantMapper;
+import com.csmp.supply.mapper.SupplyOrgCloudTenantBindMapper;
+import com.csmp.supply.support.SupplyIdGenerator;
+import com.csmp.system.api.RemoteDeptService;
+import com.csmp.system.api.domain.vo.RemoteDeptVo;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+@Tag("dev")
+class SupplyOrgCloudTenantBindServiceImplTest {
+
+    private static final String TENANT_ID = "00000000000000000001";
+
+    @Mock
+    private SupplyOrgCloudTenantBindMapper bindMapper;
+    @Mock
+    private SupplyCloudPlatformMapper cloudPlatformMapper;
+    @Mock
+    private SupplyCloudTenantMapper cloudTenantMapper;
+    @Mock
+    private RemoteDeptService remoteDeptService;
+    @Mock
+    private SupplyIdGenerator idGenerator;
+
+    private SupplyOrgCloudTenantBindServiceImpl bindService;
+
+    @BeforeEach
+    void setUp() {
+        bindService = spy(new SupplyOrgCloudTenantBindServiceImpl(
+            bindMapper,
+            cloudPlatformMapper,
+            cloudTenantMapper,
+            remoteDeptService,
+            idGenerator
+        ));
+        doReturn(TENANT_ID).when(bindService).currentTenantId();
+    }
+
+    @Test
+    void insertByBoShouldRejectDuplicateActiveBinding() {
+        SupplyCloudPlatform platform = new SupplyCloudPlatform();
+        platform.setId(1L);
+        SupplyCloudTenant cloudTenant = new SupplyCloudTenant();
+        cloudTenant.setId(2L);
+        RemoteDeptVo deptVo = new RemoteDeptVo();
+        deptVo.setDeptId(3L);
+        deptVo.setDeptName("上海事业部");
+
+        when(cloudPlatformMapper.selectById(1L)).thenReturn(platform);
+        when(cloudTenantMapper.selectById(2L)).thenReturn(cloudTenant);
+        when(remoteDeptService.selectDeptsByList()).thenReturn(List.of(deptVo));
+        when(bindMapper.exists(any())).thenReturn(true);
+
+        SupplyOrgCloudTenantBindBo bo = new SupplyOrgCloudTenantBindBo();
+        bo.setCloudPlatformId(1L);
+        bo.setCloudTenantSnapshotId(2L);
+        bo.setOrgId(3L);
+
+        assertThrows(ServiceException.class, () -> bindService.insertByBo(bo));
+    }
+}
