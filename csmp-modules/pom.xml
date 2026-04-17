@@ -13,6 +13,7 @@
         <module>csmp-gen</module>
         <module>csmp-job</module>
         <module>csmp-resource</module>
+        <module>csmp-supply</module>
         <module>csmp-workflow</module>
     </modules>
 

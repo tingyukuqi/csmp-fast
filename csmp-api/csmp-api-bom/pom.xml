@@ -27,6 +27,13 @@
                 <version>${revision}</version>
             </dependency>
 
+            <!-- 供应链接口 -->
+            <dependency>
+                <groupId>com.csmp</groupId>
+                <artifactId>csmp-api-supply</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
             <!-- 资源服务接口 -->
             <dependency>
                 <groupId>com.csmp</groupId>

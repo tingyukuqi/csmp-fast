@@ -120,16 +120,6 @@ public class SysUserVo implements Serializable {
     private String deptName;
 
     /**
-     * 组织ID（用户所属部门对应的组织ID）
-     */
-    private Long orgId;
-
-    /**
-     * 组织名称
-     */
-    private String orgName;
-
-    /**
      * 角色对象
      */
     private List<SysRoleVo> roles;

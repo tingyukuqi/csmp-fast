@@ -110,16 +110,6 @@ public class SysRoleVo implements Serializable {
     private List<SysRoleVo> children;
 
     /**
-     * 已隐藏的继承菜单ID
-     */
-    private Long[] hiddenMenuIds;
-
-    /**
-     * 当前生效的继承菜单ID
-     */
-    private Long[] inheritedMenuIds;
-
-    /**
      * 用户是否存在此角色标识 默认不存在
      */
     private boolean flag = false;

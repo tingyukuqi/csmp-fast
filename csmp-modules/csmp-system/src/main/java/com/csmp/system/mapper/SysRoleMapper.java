@@ -114,10 +114,6 @@ public interface SysRoleMapper extends BaseMapperPlus<SysRole, SysRoleVo> {
     /**
      * 查询角色树（同租户内）
      */
-    @DataPermission({
-        @DataColumn(key = "deptName", value = "create_dept"),
-        @DataColumn(key = "userName", value = "create_by")
-    })
     default List<SysRoleVo> selectRoleTree() {
         return this.selectVoList(new LambdaQueryWrapper<SysRole>()
             .select(SysRole::getRoleId, SysRole::getRoleName, SysRole::getParentId,

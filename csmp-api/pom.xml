@@ -11,6 +11,7 @@
     <modules>
         <module>csmp-api-bom</module>
         <module>csmp-api-system</module>
+        <module>csmp-api-supply</module>
         <module>csmp-api-resource</module>
         <module>csmp-api-workflow</module>
     </modules>

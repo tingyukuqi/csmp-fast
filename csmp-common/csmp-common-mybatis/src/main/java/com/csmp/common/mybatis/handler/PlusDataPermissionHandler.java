@@ -17,7 +17,6 @@ import com.csmp.common.mybatis.annotation.DataColumn;
 import com.csmp.common.mybatis.annotation.DataPermission;
 import com.csmp.common.mybatis.enums.DataScopeType;
 import com.csmp.common.mybatis.helper.DataPermissionHelper;
-import com.csmp.common.mybatis.service.SysDataScopeService;
 import com.csmp.common.satoken.utils.LoginHelper;
 import com.csmp.system.api.model.LoginUser;
 import com.csmp.system.api.model.RoleDTO;
@@ -139,32 +138,8 @@ public class PlusDataPermissionHandler {
             if (ObjectUtil.isNull(type)) {
                 throw new ServiceException("角色数据范围异常 => " + role.getDataScope());
             }
-            // 全部数据权限：如果有组织ID，限制在组织范围内
+            // 全部数据权限直接返回
             if (type == DataScopeType.ALL) {
-                if (user.getOrgId() != null) {
-                    // 组织级数据隔离：将 ALL 权限限制到用户所属组织的部门树范围
-                    String orgDeptIds = DataPermissionHelper.ignore(() -> {
-                        SysDataScopeService sdss = SpringUtils.getBean(SysDataScopeService.class);
-                        return sdss.getDeptAndChild(user.getOrgId());
-                    });
-                    if (StringUtils.isNotBlank(orgDeptIds)) {
-                        List<String> deptConditions = new ArrayList<>();
-                        for (DataColumn dataColumn : dataPermission.value()) {
-                            if (ignoreMap.containsKey(dataColumn)) {
-                                continue;
-                            }
-                            for (int i = 0; i < dataColumn.key().length; i++) {
-                                // 只对部门相关列（key = "deptName"）施加组织边界
-                                if ("deptName".equals(dataColumn.key()[i])) {
-                                    deptConditions.add(dataColumn.value()[i] + " IN (" + orgDeptIds + ")");
-                                }
-                            }
-                        }
-                        if (CollUtil.isNotEmpty(deptConditions)) {
-                            return String.join(joinStr, deptConditions);
-                        }
-                    }
-                }
                 return StringUtils.EMPTY;
             }
             boolean isSuccess = false;

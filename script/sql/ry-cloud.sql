@@ -211,8 +211,6 @@ create table sys_role (
   data_scope           char(1)         default '1'                comment '数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限 6：部门及以下或本人数据权限）',
   menu_check_strictly  tinyint(1)      default 1                  comment '菜单树选择项是否关联显示',
   dept_check_strictly  tinyint(1)      default 1                  comment '部门树选择项是否关联显示',
-  parent_id            bigint(20)      default null               comment '父角色ID，顶级角色为NULL',
-  role_level           int(4)          default 0                  comment '角色层级深度，顶级=0',
   status               char(1)         not null                   comment '角色状态（0正常 1停用）',
   del_flag             char(1)         default '0'                comment '删除标志（0代表存在 1代表删除）',
   create_dept          bigint(20)      default null               comment '创建部门',
@@ -227,9 +225,9 @@ create table sys_role (
 -- ----------------------------
 -- 初始化-角色信息表数据
 -- ----------------------------
-insert into sys_role values(1, '000000', '超级管理员',  'superadmin',  1, 1, 1, 1, null, 0, '0', '0', 103, 1, sysdate(), null, null, '超级管理员');
-insert into sys_role values(3, '000000', '本部门及以下', 'test1', 3, 4, 1, 1, null, 0, '0', '0', 103, 1, sysdate(), null, null, '');
-insert into sys_role values(4, '000000', '仅本人',      'test2', 4, 5, 1, 1, null, 0, '0', '0', 103, 1, sysdate(), null, null, '');
+insert into sys_role values(1, '000000', '超级管理员',  'superadmin',  1, 1, 1, 1, '0', '0', 103, 1, sysdate(), null, null, '超级管理员');
+insert into sys_role values(3, '000000', '本部门及以下', 'test1', 3, 4, 1, 1, '0', '0', 103, 1, sysdate(), null, null, '');
+insert into sys_role values(4, '000000', '仅本人',      'test2', 4, 5, 1, 1, '0', '0', 103, 1, sysdate(), null, null, '');
 
 
 -- ----------------------------
@@ -274,12 +272,13 @@ insert into sys_menu values('5', '测试菜单', '0', '5', 'demo',             n
 insert into sys_menu values('100',  '用户管理',     '1',   '1', 'user',             'system/user/index',            '', 1, 0, 'C', '0', '0', 'system:user:list',            'user',          103, 1, sysdate(), null, null, '用户管理菜单');
 insert into sys_menu values('101',  '角色管理',     '1',   '2', 'role',             'system/role/index',            '', 1, 0, 'C', '0', '0', 'system:role:list',            'peoples',       103, 1, sysdate(), null, null, '角色管理菜单');
 insert into sys_menu values('102',  '菜单管理',     '1',   '3', 'menu',             'system/menu/index',            '', 1, 0, 'C', '0', '0', 'system:menu:list',            'tree-table',    103, 1, sysdate(), null, null, '菜单管理菜单');
-insert into sys_menu values('103',  '部门管理',     '1',   '4', 'dept',             'system/dept/index',            '', 1, 0, 'C', '0', '0', 'system:dept:list',            'tree',          103, 1, sysdate(), null, null, '部门管理菜单');
-insert into sys_menu values('104',  '岗位管理',     '1',   '5', 'post',             'system/post/index',            '', 1, 0, 'C', '0', '0', 'system:post:list',            'post',          103, 1, sysdate(), null, null, '岗位管理菜单');
-insert into sys_menu values('105',  '字典管理',     '1',   '6', 'dict',             'system/dict/index',            '', 1, 0, 'C', '0', '0', 'system:dict:list',            'dict',          103, 1, sysdate(), null, null, '字典管理菜单');
-insert into sys_menu values('106',  '参数设置',     '1',   '7', 'config',           'system/config/index',          '', 1, 0, 'C', '0', '0', 'system:config:list',          'edit',          103, 1, sysdate(), null, null, '参数设置菜单');
-insert into sys_menu values('107',  '通知公告',     '1',   '8', 'notice',           'system/notice/index',          '', 1, 0, 'C', '0', '0', 'system:notice:list',          'message',       103, 1, sysdate(), null, null, '通知公告菜单');
-insert into sys_menu values('108',  '日志管理',     '1',   '9', 'log',              '',                             '', 1, 0, 'M', '0', '0', '',                            'log',           103, 1, sysdate(), null, null, '日志管理菜单');
+insert into sys_menu values('2000', '组织机构',     '1',   '4', 'org',              'system/org/index',             '', 1, 0, 'C', '0', '0', 'system:org:list',             'tree',          103, 1, sysdate(), null, null, '组织机构管理菜单');
+insert into sys_menu values('103',  '部门管理',     '1',   '5', 'dept',             'system/dept/index',            '', 1, 0, 'C', '0', '0', 'system:dept:list',            'tree',          103, 1, sysdate(), null, null, '部门管理菜单');
+insert into sys_menu values('104',  '岗位管理',     '1',   '6', 'post',             'system/post/index',            '', 1, 0, 'C', '0', '0', 'system:post:list',            'post',          103, 1, sysdate(), null, null, '岗位管理菜单');
+insert into sys_menu values('105',  '字典管理',     '1',   '7', 'dict',             'system/dict/index',            '', 1, 0, 'C', '0', '0', 'system:dict:list',            'dict',          103, 1, sysdate(), null, null, '字典管理菜单');
+insert into sys_menu values('106',  '参数设置',     '1',   '8', 'config',           'system/config/index',          '', 1, 0, 'C', '0', '0', 'system:config:list',          'edit',          103, 1, sysdate(), null, null, '参数设置菜单');
+insert into sys_menu values('107',  '通知公告',     '1',   '9', 'notice',           'system/notice/index',          '', 1, 0, 'C', '0', '0', 'system:notice:list',          'message',       103, 1, sysdate(), null, null, '通知公告菜单');
+insert into sys_menu values('108',  '日志管理',     '1',   '10', 'log',             '',                             '', 1, 0, 'M', '0', '0', '',                            'log',           103, 1, sysdate(), null, null, '日志管理菜单');
 insert into sys_menu values('109',  '在线用户',     '2',   '1', 'online',           'monitor/online/index',         '', 1, 0, 'C', '0', '0', 'monitor:online:list',         'online',        103, 1, sysdate(), null, null, '在线用户菜单');
 insert into sys_menu values('124',  '缓存监控',     '2',   '1',  'cache',           'monitor/cache/index',          '', 1, 0, 'C', '0', '0', 'monitor:cache:list',          'redis',         103, 1, sysdate(), null, null, '缓存监控');
 insert into sys_menu values('110',  'SnailJob控制台', '2', '2', 'http://localhost:8800/snail-job', '',             '', 0, 0, 'C', '0', '0', 'monitor:job:list',             'job',           103, 1, sysdate(), null, null, 'SJ定时任务菜单');
@@ -288,7 +287,7 @@ insert into sys_menu values('113',  'Admin控制台',  '2',   '5', 'http://local
 insert into sys_menu values('115',  '代码生成',     '3',   '2', 'gen',              'tool/gen/index',               '', 1, 0, 'C', '0', '0', 'tool:gen:list',               'code',          103, 1, sysdate(), null, null, '代码生成菜单');
 insert into sys_menu values('121', '租户管理',      '6',   '1', 'tenant',           'system/tenant/index',          '', 1, 0, 'C', '0', '0', 'system:tenant:list',          'list',          103, 1, sysdate(), null, null, '租户管理菜单');
 insert into sys_menu values('122', '租户套餐管理',  '6',   '2', 'tenantPackage',    'system/tenantPackage/index',   '', 1, 0, 'C', '0', '0', 'system:tenantPackage:list',   'form',          103, 1, sysdate(), null, null, '租户套餐管理菜单');
-insert into sys_menu values('123',  '客户端管理',   '1',   '11', 'client',           'system/client/index',         '', 1, 0, 'C', '0', '0', 'system:client:list',          'international', 103, 1, sysdate(), null, null, '客户端管理菜单');
+insert into sys_menu values('123',  '客户端管理',   '1',   '12', 'client',           'system/client/index',         '', 1, 0, 'C', '0', '0', 'system:client:list',          'international', 103, 1, sysdate(), null, null, '客户端管理菜单');
 insert into sys_menu values('116', '修改生成配置',  '3',   '2', 'gen-edit/index/:tableId', 'tool/gen/editTable', '', 1, 1, 'C', '1', '0', 'tool:gen:edit',           '#',               103, 1, sysdate(), null, null, '/tool/gen');
 insert into sys_menu values('130', '分配用户',     '1',   '2', 'role-auth/user/:roleId', 'system/role/authUser', '', 1, 1, 'C', '1', '0', 'system:role:edit',      '#',               103, 1, sysdate(), null, null, '/system/role');
 insert into sys_menu values('131', '分配角色',     '1',   '1', 'user-auth/role/:userId', 'system/user/authRole', '', 1, 1, 'C', '1', '0', 'system:user:edit',      '#',               103, 1, sysdate(), null, null, '/system/user');
@@ -296,7 +295,7 @@ insert into sys_menu values('132', '字典数据',     '1',   '6', 'dict-data/in
 insert into sys_menu values('133', '文件配置管理',  '1',   '10', 'oss-config/index',              'system/oss/config', '', 1, 1, 'C', '1', '0', 'system:ossConfig:list',  '#',                103, 1, sysdate(), null, null, '/system/oss');
 
 -- oss菜单
-insert into sys_menu values('118',  '文件管理',     '1',   '10', 'oss',              'system/oss/index',            '', 1, 0, 'C', '0', '0', 'system:oss:list',              'upload',        103, 1, sysdate(), null, null, '文件管理菜单');
+insert into sys_menu values('118',  '文件管理',     '1',   '11', 'oss',              'system/oss/index',            '', 1, 0, 'C', '0', '0', 'system:oss:list',              'upload',        103, 1, sysdate(), null, null, '文件管理菜单');
 -- 三级菜单
 insert into sys_menu values('500',  '操作日志', '108', '1', 'operlog',    'monitor/operlog/index',    '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          103, 1, sysdate(), null, null, '操作日志菜单');
 insert into sys_menu values('501',  '登录日志', '108', '2', 'logininfor', 'monitor/logininfor/index', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    103, 1, sysdate(), null, null, '登录日志菜单');
@@ -319,6 +318,12 @@ insert into sys_menu values('1013', '菜单查询', '102', '1',  '', '', '', 1, 
 insert into sys_menu values('1014', '菜单新增', '102', '2',  '', '', '', 1, 0, 'F', '0', '0', 'system:menu:add',            '#', 103, 1, sysdate(), null, null, '');
 insert into sys_menu values('1015', '菜单修改', '102', '3',  '', '', '', 1, 0, 'F', '0', '0', 'system:menu:edit',           '#', 103, 1, sysdate(), null, null, '');
 insert into sys_menu values('1016', '菜单删除', '102', '4',  '', '', '', 1, 0, 'F', '0', '0', 'system:menu:remove',         '#', 103, 1, sysdate(), null, null, '');
+-- 组织机构按钮
+insert into sys_menu values('2001', '组织查询', '2000', '1',  '', '', '', 1, 0, 'F', '0', '0', 'system:org:query',          '#', 103, 1, sysdate(), null, null, '');
+insert into sys_menu values('2002', '组织新增', '2000', '2',  '', '', '', 1, 0, 'F', '0', '0', 'system:org:add',            '#', 103, 1, sysdate(), null, null, '');
+insert into sys_menu values('2003', '组织修改', '2000', '3',  '', '', '', 1, 0, 'F', '0', '0', 'system:org:edit',           '#', 103, 1, sysdate(), null, null, '');
+insert into sys_menu values('2004', '组织删除', '2000', '4',  '', '', '', 1, 0, 'F', '0', '0', 'system:org:remove',         '#', 103, 1, sysdate(), null, null, '');
+insert into sys_menu values('2005', '组织导出', '2000', '5',  '', '', '', 1, 0, 'F', '0', '0', 'system:org:export',         '#', 103, 1, sysdate(), null, null, '');
 -- 部门管理按钮
 insert into sys_menu values('1017', '部门查询', '103', '1',  '', '', '', 1, 0, 'F', '0', '0', 'system:dept:query',          '#', 103, 1, sysdate(), null, null, '');
 insert into sys_menu values('1018', '部门新增', '103', '2',  '', '', '', 1, 0, 'F', '0', '0', 'system:dept:add',            '#', 103, 1, sysdate(), null, null, '');
@@ -611,42 +616,7 @@ insert into sys_role_menu values ('4', '1510');
 insert into sys_role_menu values ('4', '1511');
 
 -- ----------------------------
--- 8、角色继承菜单隐藏表
--- ----------------------------
-create table sys_role_hidden_menu (
-  role_id   bigint(20) not null comment '角色ID',
-  menu_id   bigint(20) not null comment '被隐藏的继承菜单ID',
-  primary key(role_id, menu_id)
-) engine=innodb comment = '角色继承菜单隐藏表';
-
-create index idx_sys_role_hidden_menu_role on sys_role_hidden_menu (role_id);
-
--- ----------------------------
--- 9、角色有效菜单物化表
--- ----------------------------
-create table sys_role_effective_menu (
-  role_id              bigint(20)  not null comment '角色ID',
-  menu_id              bigint(20)  not null comment '有效菜单ID',
-  source               varchar(16) not null comment '来源：OWN=自有, INHERITED=继承',
-  inherit_from_role_id bigint(20)  default null comment '继承自哪个角色',
-  primary key(role_id, menu_id)
-) engine=innodb comment = '角色有效菜单物化表';
-
-create index idx_sys_role_parent_id on sys_role (parent_id);
-create index idx_sys_role_effective_menu_role on sys_role_effective_menu (role_id);
-create index idx_sys_role_effective_menu_menu on sys_role_effective_menu (menu_id);
-
--- ----------------------------
--- 初始化-角色有效菜单物化表数据
--- ----------------------------
-insert ignore into sys_role_effective_menu (role_id, menu_id, source, inherit_from_role_id)
-select srm.role_id, srm.menu_id, 'OWN', null
-from sys_role_menu srm
-inner join sys_role sr on sr.role_id = srm.role_id
-where sr.del_flag = '0';
-
--- ----------------------------
--- 10、角色和部门关联表  角色1-N部门
+-- 8、角色和部门关联表  角色1-N部门
 -- ----------------------------
 create table sys_role_dept (
   role_id   bigint(20) not null comment '角色ID',
@@ -1101,3 +1071,33 @@ CREATE TABLE IF NOT EXISTS undo_log
     log_modified  DATETIME(6)  NOT NULL COMMENT 'modify datetime',
     UNIQUE KEY ux_undo_log (xid, branch_id)
 ) ENGINE = InnoDB COMMENT ='AT transaction mode undo table';
+
+
+-- =====================================================
+-- 组织机构管理菜单
+-- ROLLBACK: DELETE FROM sys_menu WHERE menu_id IN (2000, 2001, 2002, 2003, 2004, 2005); UPDATE sys_menu SET order_num = '4' WHERE menu_id = '103'; UPDATE sys_menu SET order_num = '5' WHERE menu_id = '104'; UPDATE sys_menu SET order_num = '6' WHERE menu_id = '105'; UPDATE sys_menu SET order_num = '7' WHERE menu_id = '106'; UPDATE sys_menu SET order_num = '8' WHERE menu_id = '107'; UPDATE sys_menu SET order_num = '9' WHERE menu_id = '108'; UPDATE sys_menu SET order_num = '10' WHERE menu_id = '118'; UPDATE sys_menu SET order_num = '11' WHERE menu_id = '123';
+-- =====================================================
+
+-- 调整系统管理下现有菜单排序，给组织机构菜单预留位置
+update sys_menu set order_num = '5' where menu_id = '103';
+update sys_menu set order_num = '6' where menu_id = '104';
+update sys_menu set order_num = '7' where menu_id = '105';
+update sys_menu set order_num = '8' where menu_id = '106';
+update sys_menu set order_num = '9' where menu_id = '107';
+update sys_menu set order_num = '10' where menu_id = '108';
+update sys_menu set order_num = '11' where menu_id = '118';
+update sys_menu set order_num = '12' where menu_id = '123';
+
+-- 组织机构管理菜单（放在系统管理目录下，排序在部门管理之前）
+insert into sys_menu values('2000', '组织机构', '1', '4', 'org', 'system/org/index', '', 1, 0, 'C', '0', '0', 'system:org:list', 'tree', 103, 1, now(), null, null, '组织机构管理菜单');
+
+-- 组织机构查询
+insert into sys_menu values('2001', '组织查询', '2000', '1', '', '', '', 1, 0, 'F', '0', '0', 'system:org:query',  '#', 103, 1, now(), null, null, '');
+-- 组织机构新增
+insert into sys_menu values('2002', '组织新增', '2000', '2', '', '', '', 1, 0, 'F', '0', '0', 'system:org:add',    '#', 103, 1, now(), null, null, '');
+-- 组织机构修改
+insert into sys_menu values('2003', '组织修改', '2000', '3', '', '', '', 1, 0, 'F', '0', '0', 'system:org:edit',   '#', 103, 1, now(), null, null, '');
+-- 组织机构删除
+insert into sys_menu values('2004', '组织删除', '2000', '4', '', '', '', 1, 0, 'F', '0', '0', 'system:org:remove', '#', 103, 1, now(), null, null, '');
+-- 组织机构导出
+insert into sys_menu values('2005', '组织导出', '2000', '5', '', '', '', 1, 0, 'F', '0', '0', 'system:org:export', '#', 103, 1, now(), null, null, '');
