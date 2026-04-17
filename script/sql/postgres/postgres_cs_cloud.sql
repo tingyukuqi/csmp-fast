@@ -5,8 +5,8 @@ create table sys_social
 (
     id                 int8             not null,
     user_id            int8             not null,
-    auth_id            varchar(255)     not null,
     tenant_id          varchar(20)      default '000000'::varchar,
+    auth_id            varchar(255)     not null,
     source             varchar(255)     not null,
     open_id            varchar(255)     default null::varchar,
     user_name          varchar(30)      not null,
@@ -337,8 +337,6 @@ create table if not exists sys_role
     data_scope          char         default '1'::bpchar,
     menu_check_strictly bool         default true,
     dept_check_strictly bool         default true,
-    parent_id           int8         default null,
-    role_level          int4         default 0,
     status              char         not null,
     del_flag            char         default '0'::bpchar,
     create_dept         int8,
@@ -359,8 +357,6 @@ comment on column sys_role.role_sort            is '显示顺序';
 comment on column sys_role.data_scope           is '数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限 6：部门及以下或本人数据权限）';
 comment on column sys_role.menu_check_strictly  is '菜单树选择项是否关联显示';
 comment on column sys_role.dept_check_strictly  is '部门树选择项是否关联显示';
-comment on column sys_role.parent_id            is '父角色ID，顶级角色为NULL';
-comment on column sys_role.role_level           is '角色层级深度，顶级=0';
 comment on column sys_role.status               is '角色状态（0正常 1停用）';
 comment on column sys_role.del_flag             is '删除标志（0代表存在 1代表删除）';
 comment on column sys_role.create_dept          is '创建部门';
@@ -373,9 +369,9 @@ comment on column sys_role.remark               is '备注';
 -- ----------------------------
 -- 初始化-角色信息表数据
 -- ----------------------------
-insert into sys_role values('1', '000000', '超级管理员',  'superadmin',  1, '1', 't', 't', null, 0, '0', '0', 103, 1, now(), null, null, '超级管理员');
-insert into sys_role values('3', '000000', '本部门及以下', 'test1', 3, '4', 't', 't', null, 0, '0', '0', 103, 1, now(), NULL, NULL, '');
-insert into sys_role values('4', '000000', '仅本人', 'test2', 4, '5', 't', 't', null, 0, '0', '0', 103, 1, now(), NULL, NULL, '');
+insert into sys_role values('1', '000000', '超级管理员',  'superadmin',  1, '1', 't', 't', '0', '0', 103, 1, now(), null, null, '超级管理员');
+insert into sys_role values('3', '000000', '本部门及以下', 'test1', 3, '4', 't', 't', '0', '0', 103, 1, now(), NULL, NULL, '');
+insert into sys_role values('4', '000000', '仅本人', 'test2', 4, '5', 't', 't', '0', '0', 103, 1, now(), NULL, NULL, '');
 
 
 -- ----------------------------
@@ -796,55 +792,7 @@ insert into sys_role_menu values ('4', '1511');
 
 
 -- ----------------------------
--- 8、角色继承菜单隐藏表
--- ----------------------------
-create table if not exists sys_role_hidden_menu
-(
-    role_id int8 not null,
-    menu_id int8 not null,
-    constraint pk_sys_role_hidden_menu primary key (role_id, menu_id)
-);
-
-comment on table sys_role_hidden_menu is '角色继承菜单隐藏表';
-comment on column sys_role_hidden_menu.role_id is '角色ID';
-comment on column sys_role_hidden_menu.menu_id is '被隐藏的继承菜单ID';
-
-create index if not exists idx_sys_role_hidden_menu_role on sys_role_hidden_menu (role_id);
-
--- ----------------------------
--- 9、角色有效菜单物化表
--- ----------------------------
-create table if not exists sys_role_effective_menu
-(
-    role_id              int8        not null,
-    menu_id              int8        not null,
-    source               varchar(16) not null,
-    inherit_from_role_id int8        default null,
-    constraint pk_sys_role_effective_menu primary key (role_id, menu_id)
-);
-
-comment on table sys_role_effective_menu is '角色有效菜单物化表';
-comment on column sys_role_effective_menu.role_id is '角色ID';
-comment on column sys_role_effective_menu.menu_id is '有效菜单ID';
-comment on column sys_role_effective_menu.source is '来源：OWN=自有, INHERITED=继承';
-comment on column sys_role_effective_menu.inherit_from_role_id is '继承自哪个角色';
-
-create index if not exists idx_sys_role_parent_id on sys_role (parent_id);
-create index if not exists idx_sys_role_effective_menu_role on sys_role_effective_menu (role_id);
-create index if not exists idx_sys_role_effective_menu_menu on sys_role_effective_menu (menu_id);
-
--- ----------------------------
--- 初始化-角色有效菜单物化表数据
--- ----------------------------
-insert into sys_role_effective_menu (role_id, menu_id, source, inherit_from_role_id)
-select srm.role_id, srm.menu_id, 'OWN', null
-from sys_role_menu srm
-         inner join sys_role sr on sr.role_id = srm.role_id
-where sr.del_flag = '0'
-on conflict (role_id, menu_id) do nothing;
-
--- ----------------------------
--- 10、角色和部门关联表  角色1-N部门
+-- 8、角色和部门关联表  角色1-N部门
 -- ----------------------------
 create table if not exists sys_role_dept
 (

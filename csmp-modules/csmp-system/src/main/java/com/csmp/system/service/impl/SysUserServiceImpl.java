@@ -27,7 +27,6 @@ import com.csmp.system.domain.vo.SysPostVo;
 import com.csmp.system.domain.vo.SysRoleVo;
 import com.csmp.system.domain.vo.SysUserExportVo;
 import com.csmp.system.domain.vo.SysUserVo;
-import com.csmp.system.domain.vo.SysDeptVo;
 import com.csmp.system.mapper.*;
 import com.csmp.system.service.ISysUserService;
 import org.springframework.cache.annotation.CacheEvict;
@@ -60,7 +59,6 @@ public class SysUserServiceImpl implements ISysUserService {
     @Override
     public TableDataInfo<SysUserVo> selectPageUserList(SysUserBo user, PageQuery pageQuery) {
         Page<SysUserVo> page = baseMapper.selectPageUserList(pageQuery.build(), this.buildQueryWrapper(user));
-        populateOrgInfo(page.getRecords());
         return TableDataInfo.build(page);
     }
 
@@ -656,34 +654,6 @@ public class SysUserServiceImpl implements ISysUserService {
         SysUser sysUser = baseMapper.selectOne(new LambdaQueryWrapper<SysUser>()
             .select(SysUser::getEmail).eq(SysUser::getUserId, userId));
         return ObjectUtils.notNullGetter(sysUser, SysUser::getEmail);
-    }
-
-    /**
-     * 填充用户列表的组织信息（orgId、orgName）
-     * <p>
-     * 利用已缓存的 dept 查询，从用户所属部门的 ancestors 推导组织ID
-     */
-    private void populateOrgInfo(List<SysUserVo> users) {
-        if (CollUtil.isEmpty(users)) {
-            return;
-        }
-        for (SysUserVo user : users) {
-            if (user.getDeptId() == null) {
-                continue;
-            }
-            SysDeptVo dept = deptMapper.selectVoById(user.getDeptId());
-            if (dept == null) {
-                continue;
-            }
-            Long orgId = OrgUtils.getOrgId(dept.getAncestors(), user.getDeptId());
-            user.setOrgId(orgId);
-            if (orgId != null) {
-                SysDeptVo orgDept = deptMapper.selectVoById(orgId);
-                if (orgDept != null) {
-                    user.setOrgName(orgDept.getDeptName());
-                }
-            }
-        }
     }
 
 }

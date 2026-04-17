@@ -34,9 +34,4 @@ public class RemoteDeptVo implements Serializable {
      */
     private String deptName;
 
-    /**
-     * 祖级列表
-     */
-    private String ancestors;
-
 }

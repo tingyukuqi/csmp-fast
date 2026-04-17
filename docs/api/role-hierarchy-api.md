@@ -132,8 +132,6 @@ interface SysRoleVo {
     roleLevel: number           // 层级深度，顶级=0
     parentRoleName: string | null // 父角色名称（仅树形接口返回）
     children: SysRoleVo[] | null  // 子角色列表（仅树形接口返回）
-    hiddenMenuIds: number[] | null // 已隐藏的继承菜单ID
-    inheritedMenuIds: number[] | null // 当前生效的继承菜单ID
     flag: boolean               // 是否已分配给当前用户（仅特定场景）
 }
 ```
@@ -262,10 +260,8 @@ interface SysRoleEffectiveMenu {
         "createTime": "2024-01-01 00:00:00",
         "parentId": 1,
         "roleLevel": 1,
-        "parentRoleName": "超级管理员",
+        "parentRoleName": null,
         "children": null,
-        "hiddenMenuIds": [105],
-        "inheritedMenuIds": [100, 101],
         "flag": false
     }
 }
@@ -295,8 +291,6 @@ interface SysRoleEffectiveMenu {
 ```
 
 **响应**: `R<Void>`
-
-**注意**：状态变更后会级联刷新该角色及其子孙角色的有效菜单，相关在线用户需要重新登录以获取最新权限。
 
 ```json
 // 成功

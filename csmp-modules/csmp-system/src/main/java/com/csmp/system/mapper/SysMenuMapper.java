@@ -40,26 +40,6 @@ public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo> {
     }
 
     /**
-     * 构建用户有效菜单 SQL
-     *
-     * <p>
-     * 查询用户所属角色的有效菜单（包含继承菜单）
-     * </p>
-     *
-     * @param userId 用户ID
-     * @return SQL 字符串，用于 inSql 条件
-     */
-    default String buildEffectiveMenuByUserSql(Long userId) {
-        return """
-                select menu_id from sys_role_effective_menu where role_id in (
-                    select sur.role_id from sys_user_role sur
-                        left join sys_role sr on sr.role_id = sur.role_id
-                        where sur.user_id = %d and sr.status = '0'
-                )
-            """.formatted(userId);
-    }
-
-    /**
      * 构建角色对应的菜单ID SQL 子查询
      *
      * <p>
@@ -75,20 +55,6 @@ public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo> {
                 select srm.menu_id from sys_role_menu srm
                     left join sys_role sr on sr.role_id = srm.role_id
                     where srm.role_id = %d and sr.status = '0'
-            """.formatted(roleId);
-    }
-
-    /**
-     * 构建角色对应的有效菜单ID SQL 子查询
-     *
-     * @param roleId 角色ID
-     * @return 查询菜单ID的 SQL 子查询字符串
-     */
-    default String buildEffectiveMenuByRoleSql(Long roleId) {
-        return """
-                select srem.menu_id from sys_role_effective_menu srem
-                    left join sys_role sr on sr.role_id = srem.role_id
-                    where srem.role_id = %d and sr.status = '0'
             """.formatted(roleId);
     }
 
@@ -109,22 +75,6 @@ public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo> {
                     select srm.menu_id from sys_role_menu srm
                         left join sys_role sr on sr.role_id = srm.role_id
                         where srm.role_id = %d and sr.status = '0'
-                )
-            """.formatted(roleId);
-    }
-
-    /**
-     * 构建角色有效菜单的父菜单ID查询 SQL
-     *
-     * @param roleId 角色ID
-     * @return SQL 语句字符串
-     */
-    default String buildEffectiveParentMenuByRoleSql(Long roleId) {
-        return """
-                select parent_id from sys_menu where menu_id in (
-                    select srem.menu_id from sys_role_effective_menu srem
-                        left join sys_role sr on sr.role_id = srem.role_id
-                        where srem.role_id = %d and sr.status = '0'
                 )
             """.formatted(roleId);
     }
@@ -185,11 +135,11 @@ public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo> {
     default List<Long> selectMenuListByRoleId(Long roleId, boolean menuCheckStrictly) {
         LambdaQueryWrapper<SysMenu> wrapper = new LambdaQueryWrapper<>();
         wrapper.select(SysMenu::getMenuId)
-            .inSql(SysMenu::getMenuId, buildEffectiveMenuByRoleSql(roleId))
+            .inSql(SysMenu::getMenuId, buildMenuByRoleSql(roleId))
             .orderByAsc(SysMenu::getParentId)
             .orderByAsc(SysMenu::getOrderNum);
         if (menuCheckStrictly) {
-            wrapper.notInSql(SysMenu::getMenuId, this.buildEffectiveParentMenuByRoleSql(roleId));
+            wrapper.notInSql(SysMenu::getMenuId, this.buildParentMenuByRoleSql(roleId));
         }
         return this.selectObjs(wrapper);
     }
@@ -198,10 +148,17 @@ public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo> {
      * 根据用户ID查询有效权限（使用物化表）
      */
     default Set<String> selectEffectiveMenuPermsByUserId(Long userId) {
+        String effectiveMenuSql = """
+                select menu_id from sys_role_effective_menu where role_id in (
+                    select sur.role_id from sys_user_role sur
+                        left join sys_role sr on sr.role_id = sur.role_id
+                        where sur.user_id = %d and sr.status = '0'
+                )
+            """.formatted(userId);
         List<String> list = this.selectObjs(
             new LambdaQueryWrapper<SysMenu>()
                 .select(SysMenu::getPerms)
-                .inSql(SysMenu::getMenuId, buildEffectiveMenuByUserSql(userId))
+                .inSql(SysMenu::getMenuId, effectiveMenuSql)
                 .isNotNull(SysMenu::getPerms)
         );
         return new HashSet<>(StreamUtils.filter(list, StringUtils::isNotBlank));
@@ -211,10 +168,13 @@ public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo> {
      * 根据角色ID查询有效权限（使用物化表）
      */
     default Set<String> selectEffectiveMenuPermsByRoleId(Long roleId) {
+        String effectiveMenuSql = """
+                select menu_id from sys_role_effective_menu where role_id = %d
+            """.formatted(roleId);
         List<String> list = this.selectObjs(
             new LambdaQueryWrapper<SysMenu>()
                 .select(SysMenu::getPerms)
-                .inSql(SysMenu::getMenuId, buildEffectiveMenuByRoleSql(roleId))
+                .inSql(SysMenu::getMenuId, effectiveMenuSql)
                 .isNotNull(SysMenu::getPerms)
         );
         return new HashSet<>(StreamUtils.filter(list, StringUtils::isNotBlank));

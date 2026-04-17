@@ -228,15 +228,13 @@ public class SysRoleController extends BaseController {
      * 获取对应角色部门树列表
      *
      * @param roleId 角色ID
-     * @param orgId  组织ID（可选，指定时只返回该组织下的部门树）
      */
     @SaCheckPermission("system:role:list")
     @GetMapping(value = "/deptTree/{roleId}")
-    public R<DeptTreeSelectVo> roleDeptTreeselect(@PathVariable("roleId") Long roleId,
-                                                   @RequestParam(value = "orgId", required = false) Long orgId) {
+    public R<DeptTreeSelectVo> roleDeptTreeselect(@PathVariable("roleId") Long roleId) {
         DeptTreeSelectVo selectVo = new DeptTreeSelectVo(
             deptService.selectDeptListByRoleId(roleId),
-            orgId != null ? deptService.selectDeptTreeByOrgId(orgId) : deptService.selectDeptTreeList(new SysDeptBo()));
+            deptService.selectDeptTreeList(new SysDeptBo()));
         return R.ok(selectVo);
     }
 
@@ -255,7 +253,6 @@ public class SysRoleController extends BaseController {
     @SaCheckPermission("system:role:query")
     @GetMapping("/{roleId}/effective-menus")
     public R<List<SysRoleEffectiveMenu>> effectiveMenus(@PathVariable Long roleId) {
-        roleService.checkRoleDataScope(roleId);
         return R.ok(roleService.selectEffectiveMenus(roleId));
     }
 
@@ -266,7 +263,6 @@ public class SysRoleController extends BaseController {
     @Log(title = "角色管理", businessType = BusinessType.UPDATE)
     @PutMapping("/{roleId}/hide-menus")
     public R<Void> hideMenus(@PathVariable Long roleId, @RequestBody Long[] menuIds) {
-        roleService.checkRoleDataScope(roleId);
         roleService.hideInheritedMenus(roleId, menuIds);
         return R.ok();
     }
@@ -278,7 +274,6 @@ public class SysRoleController extends BaseController {
     @Log(title = "角色管理", businessType = BusinessType.UPDATE)
     @PutMapping("/{roleId}/restore-menus")
     public R<Void> restoreMenus(@PathVariable Long roleId, @RequestBody Long[] menuIds) {
-        roleService.checkRoleDataScope(roleId);
         roleService.restoreInheritedMenus(roleId, menuIds);
         return R.ok();
     }
@@ -292,3 +287,4 @@ public class SysRoleController extends BaseController {
     public record DeptTreeSelectVo(List<Long> checkedKeys, List<Tree<Long>> depts) {}
 
 }
+

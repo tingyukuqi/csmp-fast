@@ -32,7 +32,7 @@ public interface IRoleHierarchyService {
     /**
      * 校验数据权限继承约束
      */
-    void validateDataScopeConstraint(Long roleId, Long parentId, String dataScope, Long[] deptIds);
+    void validateDataScopeConstraint(Long roleId, Long parentId, String dataScope);
 
     /**
      * 计算角色层级深度
